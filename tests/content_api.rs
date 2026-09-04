@@ -134,6 +134,7 @@ fn app(reader_base_url: &str) -> Router {
         port: 0,
         searxng_base_url: "http://searxng.test".to_owned(),
         reader_base_url: reader_base_url.to_owned(),
+        reader_timeout: std::time::Duration::from_secs(60),
     }))
 }
 
@@ -195,7 +196,7 @@ async fn reader_response(
     assert_eq!(headers["x-no-cache"], "true");
     assert_eq!(headers["x-respond-with"], "markdown");
     assert_eq!(headers["x-retain-links"], "all");
-    assert_eq!(headers["x-timeout"], "20");
+    assert_eq!(headers["x-timeout"], "60");
 
     let mut response_headers = HeaderMap::new();
     response_headers.insert("content-type", "text/markdown".parse().unwrap());

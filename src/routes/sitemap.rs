@@ -21,6 +21,7 @@ pub async fn sitemap(
             &state.http_client,
             &state.config.reader_base_url,
             &requested_url,
+            state.config.reader_timeout,
         )
         .await
         {

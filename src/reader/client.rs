@@ -1,5 +1,6 @@
 use axum::http::{HeaderMap, header};
 use serde_json::json;
+use std::time::Duration;
 use url::Url;
 
 use crate::error::ApiError;
@@ -16,14 +17,16 @@ pub async fn read(
     client: &reqwest::Client,
     base_url: &str,
     url: &Url,
+    timeout: Duration,
 ) -> Result<ReaderDocument, ApiError> {
     let endpoint = format!("{}/", base_url.trim_end_matches('/'));
     let response = client
         .post(endpoint)
+        .timeout(timeout)
         .header("x-no-cache", "true")
         .header("x-respond-with", "markdown")
         .header("x-retain-links", "all")
-        .header("x-timeout", "20")
+        .header("x-timeout", timeout.as_secs().to_string())
         .json(&json!({ "url": url.as_str() }))
         .send()
         .await

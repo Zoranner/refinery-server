@@ -101,7 +101,7 @@ Expected: FAIL because the `refinery` crate and `/health` route do not exist.
 
 - [ ] **Step 3: 用最小 Axum 实现使健康检查通过**
 
-`Cargo.toml` must declare Axum, Tokio, Reqwest with `rustls-tls`, Serde, Serde JSON, `thiserror`, `url`, `quick-xml`, `tower` with `util`, `http-body-util`, `tracing`, and `tracing-subscriber`. `Config` defaults are `REFINERY_BIND=0.0.0.0`, `REFINERY_PORT=8080`, `SEARXNG_BASE_URL=http://searxng:8888`, and `READER_BASE_URL=http://reader:8081`.
+`Cargo.toml` must declare Axum, Tokio, Reqwest with `rustls-tls`, Serde, Serde JSON, `thiserror`, `url`, `quick-xml`, `tower` with `util`, `http-body-util`, `tracing`, and `tracing-subscriber`. `Config` defaults are `HTTP_LISTEN_ADDRESS=0.0.0.0`, `HTTP_LISTEN_PORT=8080`, `SEARXNG_BASE_URL=http://searxng:8888`, `READER_BASE_URL=http://reader:8081`, and `READER_REQUEST_TIMEOUT_SECONDS=60`.
 
 `src/lib.rs` exports all application modules. `src/main.rs` configures tracing, creates `AppState`, builds the router and binds the configured address. `src/http.rs` constructs the shared Reader/SearXNG client with a 5-second connect timeout and 20-second total timeout. `health` returns exactly the JSON shown in Step 1.
 
@@ -269,7 +269,7 @@ Expected: arbitrary resource attachment, robots, sitemap index, fallback and sam
 
 **Files:**
 
-- Create: `deploy/docker-compose.yml`, `deploy/app/settings.yml`, `deploy/README.md`
+- Create: `deploy/docker-compose.yml`, `deploy/.env.example`, `deploy/app/settings.yml`, `deploy/README.md`
 - Create: `README.md`
 
 **Interfaces:**
@@ -289,7 +289,7 @@ If any SSRF or response-size case violates the spec, do not start the service fo
 
 - [ ] **Step 3: 修改 Compose**
 
-Create the three services with explicit values and no `${...}` references. Mount SearXNG from `./app/settings.yml:/etc/searxng/settings.yml:ro`, set its `bind_address` to `0.0.0.0`, and do not publish SearXNG or Reader ports. The resulting structure is:
+Create the three services without `${...}` references. Load Refinery variables from `./.env`, mount SearXNG from `./app/settings.yml:/etc/searxng/settings.yml:ro`, set its `bind_address` to `0.0.0.0`, and do not publish SearXNG or Reader ports. The resulting structure is:
 
 ```yaml
   reader:
@@ -299,11 +299,8 @@ Create the three services with explicit values and no `${...}` references. Mount
   refinery:
     image: ghcr.io/zoranner/refinery:0.1.0
     restart: always
-    environment:
-      - REFINERY_BIND=0.0.0.0
-      - REFINERY_PORT=8080
-      - SEARXNG_BASE_URL=http://searxng:8888
-      - READER_BASE_URL=http://reader:8081
+    env_file:
+      - ./.env
     ports:
       - 8080:8080
 ```

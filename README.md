@@ -81,7 +81,7 @@ refinery-<version>-linux-arm64.tar.sha256
 
 ## 部署前置条件
 
-部署 Compose 位于 `deploy/`。它同时部署 SearXNG、Reader 与 `refinery`，并使用外部 Docker 网络 `refinery`；镜像版本和端口直接写在 Compose 文件中，不依赖 `.env`：
+仓库中的 `deploy/` 只提供部署模板，不是实际部署工作目录。部署负责人应将其复制到固定管理电脑上的独立目录，再在该目录准备 `.env` 并运行 Compose。模板同时部署 SearXNG、Reader 与 `refinery`，并使用外部 Docker 网络 `refinery`；镜像版本和宿主机端口直接写在 Compose 文件中，Refinery 环境变量从同目录 `.env` 读取：
 
 ```text
 refinery -> searxng:8888
@@ -89,6 +89,8 @@ refinery -> reader:8081
 ```
 
 只有 `refinery` 发布内网端口 `8080`。SearXNG 和 Reader 在容器内部监听 `0.0.0.0`，但没有 `ports` 配置，因此不会被宿主机或员工网段直接访问。具体配置与启动方式见 [deploy/README.md](deploy/README.md)。
+
+部署目录中的 `.env.example` 需要复制为同目录 `.env`。其中包含 HTTP 监听地址/端口、SearXNG 和 Reader 内部地址，以及 Reader 抽取超时；实际 `.env` 不应提交到仓库。
 
 当前 Compose 使用 `ghcr.io/jina-ai/reader:oss`。这不阻断 Refinery 源码构建和镜像发布；正式部署前可将其替换为已在目标联网服务器验收的不可变 digest。验收至少覆盖：
 
@@ -105,4 +107,4 @@ refinery -> reader:8081
 
 Refinery 每次内容调用均重新请求上游，不保存网页、PDF、搜索结果或 sitemap。
 
-Refinery 固定 Reader 的无缓存、Markdown、链接保留和超时请求头；调用 Reader 和 SearXNG 的内部 HTTP 客户端使用 5 秒连接超时和 20 秒总超时。调用方不能透传 Cookie、认证信息、代理、浏览器或 Reader 专有配置。Reader 容器必须由部署环境的出站网络策略拒绝访问回环、私有、链路本地、保留和云元数据地址。应用层的 URL 与 DNS 检查是补充，不替代这条网络策略。
+Refinery 固定 Reader 的无缓存、Markdown、链接保留请求头；SearXNG 内部 HTTP 客户端使用 5 秒连接超时和 20 秒总超时，Reader 请求超时由 `READER_REQUEST_TIMEOUT_SECONDS` 配置，默认 60 秒。调用方不能透传 Cookie、认证信息、代理、浏览器或 Reader 专有配置。Reader 容器必须由部署环境的出站网络策略拒绝访问回环、私有、链路本地、保留和云元数据地址。应用层的 URL 与 DNS 检查是补充，不替代这条网络策略。

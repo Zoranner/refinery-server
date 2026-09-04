@@ -19,7 +19,13 @@ pub async fn content(
         return Err(ApiError::resource_download_required(&url));
     }
 
-    let document = client::read(&state.http_client, &state.config.reader_base_url, &url).await?;
+    let document = client::read(
+        &state.http_client,
+        &state.config.reader_base_url,
+        &url,
+        state.config.reader_timeout,
+    )
+    .await?;
 
     Ok(Json(response(
         &request,

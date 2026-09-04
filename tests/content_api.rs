@@ -212,6 +212,8 @@ async fn reader_response(
 ) -> (HeaderMap, String) {
     assert_eq!(body, json!({ "url": "https://example.test/docs/article" }));
     assert_eq!(headers["x-no-cache"], "true");
+    assert_eq!(headers["x-engine"], "auto");
+    assert_eq!(headers["x-respond-timing"], "visible-content");
     assert_eq!(headers["x-respond-with"], "markdown");
     assert_eq!(headers["x-retain-links"], "all");
     assert_eq!(headers["x-timeout"], "60");

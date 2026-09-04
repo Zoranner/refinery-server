@@ -6,6 +6,7 @@ use url::Url;
 use crate::error::ApiError;
 
 const MAX_RESPONSE_BYTES: usize = 10 * 1024 * 1024;
+const MAX_READER_TIMEOUT_SECONDS: u64 = 180;
 
 pub struct ReaderDocument {
     pub final_url: Url,
@@ -24,9 +25,11 @@ pub async fn read(
         .post(endpoint)
         .timeout(timeout)
         .header("x-no-cache", "true")
+        .header("x-engine", "auto")
+        .header("x-respond-timing", "visible-content")
         .header("x-respond-with", "markdown")
         .header("x-retain-links", "all")
-        .header("x-timeout", timeout.as_secs().to_string())
+        .header("x-timeout", reader_timeout_seconds(timeout).to_string())
         .json(&json!({ "url": url.as_str() }))
         .send()
         .await
@@ -58,6 +61,10 @@ pub async fn read(
     })
 }
 
+fn reader_timeout_seconds(timeout: Duration) -> u64 {
+    timeout.as_secs().min(MAX_READER_TIMEOUT_SECONDS)
+}
+
 async fn read_limited(mut response: reqwest::Response) -> Result<Vec<u8>, ApiError> {
     let mut body = Vec::new();
 
@@ -84,5 +91,15 @@ fn map_request_error(error: reqwest::Error) -> ApiError {
         ApiError::fetch_timeout()
     } else {
         ApiError::fetch_failed()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::time::Duration;
+
+    #[test]
+    fn caps_reader_timeout_header_at_one_hundred_eighty_seconds() {
+        assert_eq!(super::reader_timeout_seconds(Duration::from_secs(300)), 180);
     }
 }

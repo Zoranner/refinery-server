@@ -3,11 +3,11 @@ services:
     image: ghcr.io/zoranner/refinery:0.1.1
     container_name: refinery
     restart: always
+    env_file:
+      - ./.env
     depends_on:
       - reader
       - searxng
-    env_file:
-      - ./.env
     ports:
       - 18090:8080
   reader:

@@ -1,8 +1,9 @@
 use axum::{Json, extract::State};
 
 use crate::{
-    content::{ContentRequest, ContentResponse, ResourceKind, kind_for_url, response},
+    content::{ContentRequest, ResourceKind, kind_for_url},
     error::ApiError,
+    material::{TargetFacts, download_only_response, normalize_reader_result_with_options},
     reader::client,
     state::AppState,
 };
@@ -10,13 +11,17 @@ use crate::{
 pub async fn content(
     State(state): State<AppState>,
     Json(request): Json<ContentRequest>,
-) -> Result<Json<ContentResponse>, ApiError> {
+) -> Result<Json<crate::material::MaterialContentResponse>, ApiError> {
     let url = request.validate()?;
-    if matches!(
-        kind_for_url(&url),
-        ResourceKind::Image | ResourceKind::Unknown
-    ) {
-        return Err(ApiError::resource_download_required(&url));
+    let requested_kind = kind_for_url(&url);
+    if matches!(requested_kind, ResourceKind::Image | ResourceKind::Unknown) {
+        let target = TargetFacts::new(
+            url.clone(),
+            url.clone(),
+            requested_kind,
+            "application/octet-stream".to_owned(),
+        );
+        return Ok(Json(download_only_response(target)));
     }
 
     let document = client::read(
@@ -27,10 +32,17 @@ pub async fn content(
     )
     .await?;
 
-    Ok(Json(response(
-        &request,
+    let target = TargetFacts::new(
+        url,
         document.final_url,
-        document.content_type,
+        requested_kind,
+        document.content_type.clone(),
+    );
+    Ok(Json(normalize_reader_result_with_options(
+        target,
         document.markdown,
+        document.content_type,
+        request.offset,
+        request.max_chars,
     )))
 }

@@ -15,21 +15,6 @@ pub struct ContentRequest {
     pub max_chars: usize,
 }
 
-#[derive(Debug, Serialize)]
-pub struct ContentResponse {
-    pub requested_url: String,
-    pub final_url: String,
-    pub resource_kind: ResourceKind,
-    pub content_type: String,
-    pub title: Option<String>,
-    pub markdown: String,
-    pub links: Vec<links::Link>,
-    pub offset: usize,
-    pub next_offset: Option<usize>,
-    pub truncated: bool,
-    pub warnings: Vec<String>,
-}
-
 #[derive(Debug, Serialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
 pub enum ResourceKind {
@@ -48,30 +33,6 @@ impl ContentRequest {
         }
 
         validate_public_url(&self.url)
-    }
-}
-
-pub fn response(
-    request: &ContentRequest,
-    final_url: Url,
-    content_type: String,
-    markdown: String,
-) -> ContentResponse {
-    let part = chunk::slice(&markdown, request.offset, request.max_chars);
-    let links = links::collect(&part.markdown, &final_url);
-
-    ContentResponse {
-        requested_url: request.url.clone(),
-        final_url: final_url.to_string(),
-        resource_kind: kind_for_response(&final_url, &content_type),
-        content_type,
-        title: title(&markdown),
-        markdown: part.markdown,
-        links,
-        offset: part.offset,
-        next_offset: part.next_offset,
-        truncated: part.next_offset.is_some(),
-        warnings: Vec::new(),
     }
 }
 
@@ -132,14 +93,6 @@ pub fn kind_for_response(url: &Url, content_type: &str) -> ResourceKind {
         },
         _ => kind_for_url(url),
     }
-}
-
-fn title(markdown: &str) -> Option<String> {
-    markdown
-        .lines()
-        .find_map(|line| line.strip_prefix("# ").map(str::trim))
-        .filter(|line| !line.is_empty())
-        .map(str::to_owned)
 }
 
 pub fn validate_public_url(raw: &str) -> Result<Url, ApiError> {

@@ -57,7 +57,11 @@ pub struct ExtractionResult {
     pub status: MaterialStatus,
     pub engine: String,
     pub format: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub reason: Option<String>,
+    pub title: Option<String>,
+    pub markdown: String,
+    pub links: Vec<crate::content::links::Link>,
 }
 
 impl ExtractionResult {
@@ -67,6 +71,9 @@ impl ExtractionResult {
             engine: engine.into(),
             format: "markdown".to_owned(),
             reason: Some(reason.into()),
+            title: None,
+            markdown: String::new(),
+            links: Vec::new(),
         }
     }
 
@@ -76,6 +83,9 @@ impl ExtractionResult {
             engine: engine.into(),
             format: "binary".to_owned(),
             reason: Some(reason.into()),
+            title: None,
+            markdown: String::new(),
+            links: Vec::new(),
         }
     }
 }

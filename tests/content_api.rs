@@ -26,21 +26,31 @@ async fn content_forwards_only_fixed_reader_options_and_returns_current_chunk_li
 
     assert_eq!(response.status(), StatusCode::OK);
     let body = json_body(response).await;
-    assert_eq!(body["requested_url"], "https://example.test/docs/article");
-    assert_eq!(body["final_url"], "https://example.test/docs/article");
-    assert_eq!(body["resource_kind"], "html");
-    assert_eq!(body["title"], "Example article");
     assert_eq!(
-        body["links"],
+        body["target"]["requested_url"],
+        "https://example.test/docs/article"
+    );
+    assert_eq!(
+        body["target"]["final_url"],
+        "https://example.test/docs/article"
+    );
+    assert_eq!(body["target"]["resource_kind"], "html");
+    assert_eq!(body["extraction"]["title"], "Example article");
+    assert_eq!(
+        body["extraction"]["links"],
         json!([{
             "text": "guide",
             "url": "https://example.test/guide",
             "kind": "html"
         }])
     );
-    assert_eq!(body["offset"], 0);
-    assert_eq!(body["next_offset"], 1000);
-    assert_eq!(body["truncated"], true);
+    assert_eq!(body["extraction"]["status"], "extracted");
+    assert_eq!(body["extraction"]["engine"], "reader_auto");
+    assert_eq!(body["extraction"]["format"], "markdown");
+    assert_eq!(body["pagination"]["offset"], 0);
+    assert_eq!(body["pagination"]["next_offset"], 1000);
+    assert_eq!(body["pagination"]["truncated"], true);
+    assert_eq!(body["download"]["available"], true);
 }
 
 #[tokio::test]
@@ -83,25 +93,6 @@ async fn content_rejects_out_of_range_max_chars() {
 }
 
 #[test]
-fn content_marks_known_plain_text_extensions_as_text() {
-    let response = refinery::content::response(
-        &refinery::content::ContentRequest {
-            url: "https://example.test/notes.txt".to_owned(),
-            offset: 0,
-            max_chars: 1000,
-        },
-        "https://example.test/notes.txt".parse().unwrap(),
-        "text/markdown".to_owned(),
-        "plain text".to_owned(),
-    );
-
-    assert_eq!(
-        serde_json::to_value(response).unwrap()["resource_kind"],
-        "text"
-    );
-}
-
-#[test]
 fn content_uses_unambiguous_response_media_types() {
     let url = url::Url::parse("https://example.test/download").unwrap();
 
@@ -119,28 +110,85 @@ fn content_uses_unambiguous_response_media_types() {
     );
 }
 
+#[test]
+fn content_normalizes_empty_reader_markdown_without_losing_target_kind() {
+    let target = refinery::material::TargetFacts::new(
+        "https://example.test/notes.txt".parse().unwrap(),
+        "https://example.test/notes.txt".parse().unwrap(),
+        refinery::content::ResourceKind::Text,
+        "text/plain".to_owned(),
+    );
+
+    let response = refinery::material::normalize_reader_result(
+        target,
+        " \n\t".to_owned(),
+        "text/plain".to_owned(),
+    );
+    let json = serde_json::to_value(response).unwrap();
+
+    assert_eq!(json["target"]["resource_kind"], "text");
+    assert_eq!(json["extraction"]["status"], "empty");
+    assert_eq!(json["extraction"]["markdown"], " \n\t");
+    assert_eq!(json["extraction"]["links"], json!([]));
+}
+
 #[tokio::test]
-async fn content_directs_images_and_unknown_extensions_to_resource_download() {
+async fn content_marks_reader_challenge_as_blocked_instead_of_success() {
+    let reader = start_reader_body(
+        "Title: Just a moment...\n\ncf-chl- challenge\n\nTarget URL returned error 403: Forbidden",
+    )
+    .await;
+    let response = post_content(
+        app(&format!("http://{}", reader.address)),
+        json!({ "url": "https://example.test/report.pdf" }),
+    )
+    .await;
+
+    assert_eq!(response.status(), StatusCode::OK);
+    let body = json_body(response).await;
+    assert_eq!(body["target"]["resource_kind"], "pdf");
+    assert_eq!(body["extraction"]["status"], "blocked");
+    assert_eq!(body["download"]["available"], true);
+}
+
+#[tokio::test]
+async fn content_reports_download_only_without_calling_reader() {
+    let response = post_content(
+        app("http://127.0.0.1:9"),
+        json!({ "url": "https://example.test/file.bin" }),
+    )
+    .await;
+
+    assert_eq!(response.status(), StatusCode::OK);
+    let body = json_body(response).await;
+    assert_eq!(body["target"]["resource_kind"], "unknown");
+    assert_eq!(body["extraction"]["status"], "download_only");
+    assert_eq!(body["download"]["available"], true);
+}
+
+#[tokio::test]
+async fn content_reports_image_download_only_without_calling_reader() {
     for url in [
         "https://example.test/diagram.png",
         "https://example.test/archive.custom",
     ] {
         let response = post_content(app("http://reader.test"), json!({ "url": url })).await;
 
+        assert_eq!(response.status(), StatusCode::OK, "{url}");
+        let body = json_body(response).await;
         assert_eq!(
-            response.status(),
-            StatusCode::UNSUPPORTED_MEDIA_TYPE,
-            "{url}"
+            body["target"]["resource_kind"],
+            if url.ends_with(".png") {
+                "image"
+            } else {
+                "unknown"
+            }
         );
+        assert_eq!(body["extraction"]["status"], "download_only", "{url}");
+        assert_eq!(body["download"]["available"], true, "{url}");
         assert_eq!(
-            json_body(response).await,
-            json!({
-                "error": {
-                    "code": "resource_download_required",
-                    "message": "该资源不支持文本抽取，请通过资源下载接口获取原文件"
-                },
-                "resource_url": format!("/v1/resource?url={}", urlencoding(url))
-            }),
+            body["download"]["resource_url"],
+            format!("/v1/resource?url={}", urlencoding(url)),
             "{url}"
         );
     }
@@ -203,6 +251,37 @@ async fn start_reader() -> TestReader {
     });
 
     TestReader { address }
+}
+
+async fn start_reader_body(body: &str) -> TestReader {
+    let state = ReaderState {
+        article: body.to_owned(),
+    };
+    let router = Router::new()
+        .route("/", post(reader_body_response))
+        .with_state(state);
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let address = listener.local_addr().unwrap();
+
+    tokio::spawn(async move {
+        axum::serve(listener, router).await.unwrap();
+    });
+
+    TestReader { address }
+}
+
+async fn reader_body_response(
+    State(state): State<ReaderState>,
+    headers: HeaderMap,
+    ExtractJson(_body): ExtractJson<Value>,
+) -> (HeaderMap, String) {
+    assert_eq!(headers["x-engine"], "auto");
+    assert_eq!(headers["x-respond-timing"], "visible-content");
+    assert_eq!(headers["x-respond-with"], "markdown");
+    assert_eq!(headers["x-retain-links"], "all");
+    let mut response_headers = HeaderMap::new();
+    response_headers.insert("content-type", "text/plain".parse().unwrap());
+    (response_headers, state.article)
 }
 
 async fn reader_response(

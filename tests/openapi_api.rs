@@ -28,11 +28,57 @@ async fn serves_machine_readable_openapi_contract() {
     assert_eq!(document["openapi"], "3.0.3");
     assert!(document["paths"]["/v1/search"].is_object());
     assert!(document["paths"]["/v1/content"].is_object());
-    let content_schema = &document["components"]["schemas"]["ContentResponse"];
-    assert!(content_schema["properties"]["resource_kind"].is_object());
-    assert!(content_schema["properties"]["content_kind"].is_null());
+    let content_schema = &document["components"]["schemas"]["MaterialContentResponse"];
+    assert!(content_schema.is_object());
+    assert_eq!(
+        document["paths"]["/v1/content"]["post"]["responses"]["200"]["content"]["application/json"]
+            ["schema"]["$ref"],
+        "#/components/schemas/MaterialContentResponse"
+    );
+    assert!(document["components"]["schemas"]["ContentResponse"].is_null());
     assert_eq!(
         document["components"]["schemas"]["Error"]["required"][0],
         "code"
+    );
+}
+
+#[tokio::test]
+async fn openapi_describes_material_response_and_search_pagination() {
+    let state = refinery::state::AppState::new(refinery::config::Config {
+        bind: "127.0.0.1".parse().unwrap(),
+        port: 0,
+        searxng_base_url: "http://searxng.test".to_owned(),
+        reader_base_url: "http://reader.test".to_owned(),
+        resource_timeout: std::time::Duration::from_secs(20),
+        reader_timeout: std::time::Duration::from_secs(60),
+    });
+
+    let response = refinery::routes::router(state)
+        .oneshot(Request::get("/openapi.json").body(Body::empty()).unwrap())
+        .await
+        .unwrap();
+    assert_eq!(response.status(), 200);
+    let body = http_body_util::BodyExt::collect(response.into_body())
+        .await
+        .unwrap()
+        .to_bytes();
+    let document: Value = serde_json::from_slice(&body).unwrap();
+
+    assert!(document["components"]["schemas"]["TargetFacts"].is_object());
+    assert!(document["components"]["schemas"]["ExtractionResult"].is_object());
+    assert!(document["components"]["schemas"]["DownloadCapability"].is_object());
+    assert_eq!(
+        document["components"]["schemas"]["MaterialStatus"]["enum"][2],
+        "blocked"
+    );
+    assert!(document["components"]["schemas"]["SearchPagination"].is_object());
+    assert_eq!(
+        document["components"]["schemas"]["SearchPagination"]["properties"]["has_more"]["nullable"],
+        true
+    );
+    assert_eq!(
+        document["components"]["schemas"]["ExtractionResult"]["properties"]["reader_content_type"]
+            ["nullable"],
+        true
     );
 }

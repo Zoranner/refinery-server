@@ -111,16 +111,19 @@ POST /v1/search
 {
   "query": "Rust HTML 正文抽取库",
   "page": 1,
-  "results": [
-    {
-      "title": "候选库名称",
-      "url": "https://example.com/project",
-      "snippet": "搜索结果摘要",
-      "published_at": null
-    }
-  ]
+  "results": [],
+  "pagination": {
+    "requested_page": 1,
+    "has_more": null
+  },
+  "diagnostics": {
+    "source_status": "ok",
+    "warnings": []
+  }
 }
 ```
+
+`pagination.has_more=null` 表示上游没有提供可信的分页结束信号；空结果页不能证明已经完成。
 
 搜索结果中的 `url` 是后续内容读取的直接输入。服务不维护搜索会话，也不签发或保存搜索结果状态。
 
@@ -149,29 +152,49 @@ POST /v1/content
 
 ```json
 {
-  "requested_url": "https://example.com/article",
-  "final_url": "https://example.com/article",
-  "resource_kind": "html",
-  "content_type": "text/html",
-  "title": "页面标题",
-  "markdown": "正文……[相关 PDF](https://example.com/report.pdf)",
-  "links": [
-    {
-      "text": "相关 PDF",
-      "url": "https://example.com/report.pdf",
-      "kind": "pdf"
-    }
-  ],
-  "offset": 0,
-  "next_offset": 12000,
-  "truncated": true,
-  "warnings": []
+  "target": {
+    "requested_url": "https://example.com/article",
+    "final_url": "https://example.com/article",
+    "resource_kind": "html",
+    "content_type": "text/html"
+  },
+  "extraction": {
+    "status": "extracted",
+    "engine": "reader_auto",
+    "format": "markdown",
+    "reason": null,
+    "reader_content_type": "text/plain; charset=utf-8",
+    "title": "页面标题",
+    "markdown": "正文……[相关 PDF](https://example.com/report.pdf)",
+    "links": [
+      {
+        "text": "相关 PDF",
+        "url": "https://example.com/report.pdf",
+        "kind": "pdf"
+      }
+    ]
+  },
+  "download": {
+    "available": true,
+    "resource_url": "/v1/resource?url=..."
+  },
+  "pagination": {
+    "offset": 0,
+    "next_offset": 12000,
+    "truncated": true
+  },
+  "diagnostics": {
+    "upstream_status": null,
+    "duration_ms": null,
+    "timeout_seconds": null,
+    "warnings": []
+  }
 }
 ```
 
-- 成功的文本抽取响应中，`resource_kind` 为 `html`、`text` 或 `pdf`。
-- `markdown` 仅包含当前分段；链接保留为绝对 URL 的 Markdown 链接。
-- `links` 仅列出当前分段正文中出现的链接，避免返回整页导航、页脚和站点目录。
+- 成功的文本抽取响应中，`target.resource_kind` 为 `html`、`text` 或 `pdf`。
+- `extraction.markdown` 仅包含当前分段；链接保留为绝对 URL 的 Markdown 链接。
+- `extraction.links` 仅列出当前分段正文中出现的链接，避免返回整页导航、页脚和站点目录。
 - `kind` 根据目标 URL、链接上下文和可识别的媒体类型标记为 `html`、`pdf`、`image` 或 `unknown`。
 - `next_offset` 为 `null` 时表示没有更多已抽取文本。
 - 因网页动态变化而导致下一次重新抓取的内容与上次不同，是无缓存设计的已知边界。
@@ -183,12 +206,12 @@ POST /v1/content
 | 无后缀、`.html`、`.htm`、`.xhtml`、`.php`、`.asp`、`.aspx`、`.jsp` | `html` | 调用 Reader 抽取 Markdown。 |
 | `.txt`、`.md`、`.csv`、`.json`、`.xml`、`.yaml`、`.yml` | `text` | 调用 Reader 返回可读文本。 |
 | `.pdf` | `pdf` | 调用 Reader 提取文本。 |
-| 已知图片后缀 | 不返回文本 `resource_kind` | 不调用 Reader，返回资源下载指引。 |
-| 未登记的扩展名 | 不返回文本 `resource_kind` | 不调用 Reader，返回资源下载指引。 |
+| 已知图片后缀 | `image` | 不调用 Reader，返回 HTTP 200 的 `download_only` 结果。 |
+| 未登记的扩展名 | `unknown` | 不调用 Reader，返回 HTTP 200 的 `download_only` 结果。 |
 
 已知图片后缀包括 `.avif`、`.bmp`、`.gif`、`.ico`、`.jpeg`、`.jpg`、`.png`、`.svg`、`.tif`、`.tiff`、`.webp`。
 
-图片和 PDF 的文本读取与原始下载分开处理。`/v1/content` 只返回可供模型阅读的文本，不直接返回二进制；HTML 页面中可识别的图片和 PDF 链接随正文链接一起返回。扫描型 PDF 或 Reader 无法形成文本的 PDF 返回 `422 content_not_extractable`，但仍保留原始资源 URL，调用方可以通过 `/v1/resource` 下载原文件。
+图片和 PDF 的文本读取与原始下载分开处理。`/v1/content` 只返回可供模型阅读的文本，不直接返回二进制；HTML 页面中可识别的图片和 PDF 链接随正文链接一起返回。扫描型 PDF 或 Reader 无法形成文本的 PDF 以 `extraction.status=empty` 或 `failed` 表达，并保留原始资源 URL，调用方可以通过 `/v1/resource` 下载原文件。
 
 ### 原始资源下载
 
@@ -206,15 +229,41 @@ GET /v1/resource?url=<encoded-public-url>
 
 HTML Markdown 中的外部资源链接可以由调用方改写为对应的 `/v1/resource` 地址，使没有互联网访问权限的员工客户端仍能下载资源。资源下载不承担 OCR、视觉理解、PDF 文本提取、解压或预览职责。
 
-当 `/v1/content` 接收到已知图片后缀或未知后缀时，响应为：
+当 `/v1/content` 接收到已知图片后缀或未知后缀时，响应为 HTTP 200：
 
 ```json
 {
-  "error": {
-    "code": "resource_download_required",
-    "message": "该资源不支持文本抽取，请通过资源下载接口获取原文件"
+  "target": {
+    "requested_url": "https://example.com/diagram.png",
+    "final_url": "https://example.com/diagram.png",
+    "resource_kind": "image",
+    "content_type": "image/png"
   },
-  "resource_url": "/v1/resource?url=<encoded-public-url>"
+  "extraction": {
+    "status": "download_only",
+    "engine": "reader_auto",
+    "format": "binary",
+    "reason": "该资源不支持文本抽取，请通过资源下载接口获取原文件",
+    "reader_content_type": null,
+    "title": null,
+    "markdown": "",
+    "links": []
+  },
+  "download": {
+    "available": true,
+    "resource_url": "/v1/resource?url=..."
+  },
+  "pagination": {
+    "offset": 0,
+    "next_offset": null,
+    "truncated": false
+  },
+  "diagnostics": {
+    "upstream_status": null,
+    "duration_ms": null,
+    "timeout_seconds": null,
+    "warnings": []
+  }
 }
 ```
 
@@ -274,12 +323,12 @@ robots.txt 和 sitemap 文档必须通过与内容接口相同的公网 URL 校�
   -> DNS 解析与目标地址校验
   -> 根据 URL 后缀分类
   -> 文本对象：调用 Jina Reader 抽取并分段
-  -> 图片或未知对象：返回 /v1/resource 下载指引
+  -> 图片或未知对象：返回 download_only 与 /v1/resource 下载指引
 ```
 
 `refinery` 先执行自身的 URL 策略和路径分类。只有 `html`、`text`、`pdf` 会交给 Jina Reader；`refinery` 通过内部 HTTP POST 调用 Reader，Reader 对公网目标执行下载和抽取。Reader 返回的 Markdown 是 HTML、纯文本和可提取 PDF 的权威内容；`refinery` 不返回原始 HTML、脚本、样式或页面布局，并把保留下来的相对链接按最终 URL 转为绝对 URL。
 
-PDF 支持必须以固定 PDF 样本验证 Reader 当前固定镜像的实际输出后才纳入；若该验证不通过，`refinery` 将 PDF 降级为可发现资源，返回链接及 `content_not_extractable` 错误。首版不识别扫描件中的图片文字，也不尝试恢复复杂版式。
+PDF 支持必须以固定 PDF 样本验证 Reader 当前固定镜像的实际输出后才纳入；若抽取为空或失败，响应保留 `target.resource_kind=pdf`、下载能力和对应的抽取状态。首版不识别扫描件中的图片文字，也不尝试恢复复杂版式。
 
 图片仅作为可发现资源保留，首版不做视觉内容理解。若后续出现明确需求，再增加独立的 OCR 或视觉处理能力。
 
@@ -293,7 +342,7 @@ PDF 支持必须以固定 PDF 样本验证 Reader 当前固定镜像的实际输
 - 最多跟随 5 次重定向。
 - 连接超时为 5 秒，单次请求总超时为 20 秒。
 - `refinery` 对 Reader 响应执行 10 MiB 上限和 20 秒总超时；Reader 对外网原始响应的大小、超时和重定向限制必须以固定镜像的实测结果记录。若 Reader 无法满足安全验证，不能上线该镜像。
-- `/v1/content` 只处理 HTML、已知纯文本和 PDF；图片与未知扩展名返回 `415 resource_download_required`。`/v1/resource` 可以下载任意媒体类型，不按类型拒绝。
+- `/v1/content` 只对 HTML、已知纯文本和 PDF 调用 Reader；图片与未知扩展名返回 HTTP 200 的 `download_only` 结果。`/v1/resource` 可以下载任意媒体类型，不按类型拒绝。
 - 对每个内网源 IP 设置并发和速率限制，避免无认证服务被内部滥用。
 - 日志只记录脱敏后的 URL 主机、状态、耗时、字节数和错误类别；不记录正文和完整查询参数。
 
@@ -317,11 +366,11 @@ PDF 支持必须以固定 PDF 样本验证 Reader 当前固定镜像的实际输
 | 400 | `invalid_request` | 请求字段缺失、格式错误或 URL 不是 HTTP/HTTPS。 |
 | 403 | `blocked_target` | 目标或重定向目标不符合公网地址策略。 |
 | 413 | `response_too_large` | 响应体超过配置上限。 |
-| 415 | `resource_download_required` | 图片或未登记扩展名不进行文本抽取，调用方应使用响应中的 `resource_url` 下载原文件。 |
-| 422 | `content_not_extractable` | 内容类型可处理，但无法形成有效内容。 |
 | 502 | `search_upstream_failed` | SearXNG 不可用或返回无效搜索结果。 |
 | 502 | `fetch_failed` | 外部站点连接、TLS 或响应协议失败。 |
 | 504 | `fetch_timeout` | 外部站点在时限内未完成响应。 |
+
+HTTP 415 仅为仍需支持的非内容业务保留。框架参数错误也统一映射为 400 JSON，不暴露 `422 text/plain`。
 
 错误不泄露内部 IP、容器地址、完整上游响应或调用栈。
 

@@ -35,6 +35,23 @@ Copy-Item .env.example .env
 
 不要为 SearXNG 或 Reader 添加 `ports`。员工和内网应用只访问 Refinery；SearXNG 的配置位于 `deploy/app/settings.yml`。
 
+## 接口契约
+
+部署目录只负责容器编排，接口以源码仓库根目录的 `README.md` 和 `/openapi.json` 为准。`POST /v1/content` 的成功响应由 `target`、`extraction`、`download`、`pagination` 和 `diagnostics` 五个对象组成；图片和未知扩展名也返回 HTTP 200，并以 `extraction.status=download_only` 提供资源下载地址。`POST /v1/search` 的 `pagination.has_more` 为 `null` 时，表示 SearXNG 没有提供可信的分页结束信号，不能将空结果页当作完成。
+
+所有业务错误统一使用：
+
+```json
+{
+  "error": {
+    "code": "invalid_request",
+    "message": "..."
+  }
+}
+```
+
+`deploy/` 始终是可复制的部署模板，不是接口文档或实际运行目录。
+
 ## 启动
 
 ```powershell

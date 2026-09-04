@@ -35,6 +35,64 @@ POST /v1/content
 }
 ```
 
+搜索成功响应包含结果、分页和诊断信息：
+
+```json
+{
+  "query": "Rust HTML 正文抽取",
+  "page": 1,
+  "results": [],
+  "pagination": {
+    "requested_page": 1,
+    "has_more": null
+  },
+  "diagnostics": {
+    "source_status": "ok",
+    "warnings": []
+  }
+}
+```
+
+`has_more` 为 `null` 表示搜索上游没有提供可信的结束信号；空结果页不能直接解释为没有更多结果。
+
+内容抽取成功响应按目标事实、抽取结果、下载能力、分段和诊断分组：
+
+```json
+{
+  "target": {
+    "requested_url": "https://example.test/article",
+    "final_url": "https://example.test/article",
+    "resource_kind": "html",
+    "content_type": "text/html"
+  },
+  "extraction": {
+    "status": "extracted",
+    "engine": "reader_auto",
+    "format": "markdown",
+    "reason": null,
+    "reader_content_type": "text/plain; charset=utf-8",
+    "title": "页面标题",
+    "markdown": "正文",
+    "links": []
+  },
+  "download": {
+    "available": true,
+    "resource_url": "/v1/resource?url=..."
+  },
+  "pagination": {
+    "offset": 0,
+    "next_offset": null,
+    "truncated": false
+  },
+  "diagnostics": {
+    "upstream_status": null,
+    "duration_ms": null,
+    "timeout_seconds": null,
+    "warnings": []
+  }
+}
+```
+
 ```json
 POST /v1/sitemap
 {
@@ -47,11 +105,26 @@ POST /v1/sitemap
 GET /v1/resource?url=https%3A%2F%2Fexample.com%2Fdiagram.png
 ```
 
-`/v1/content` 仅接受绝对 `http` 或 `https` URL；字面量回环、私有、链路本地、保留地址和其他非公网地址会被拒绝。无后缀和已知网页后缀标记为 `html`，`.txt`、`.md`、`.csv`、`.json`、`.xml`、`.yaml`、`.yml` 标记为 `text`，`.pdf` 标记为 `pdf`，以上资源均调用 Reader。已知图片后缀和未登记扩展名不调用 Reader，而是返回 `415 resource_download_required` 及对应的 `/v1/resource` 地址。
+`/v1/content` 仅接受绝对 `http` 或 `https` URL；字面量回环、私有、链路本地、保留地址和其他非公网地址会被拒绝。无后缀和已知网页后缀标记为 `html`，`.txt`、`.md`、`.csv`、`.json`、`.xml`、`.yaml`、`.yml` 标记为 `text`，`.pdf` 标记为 `pdf`，以上资源均调用 Reader。已知图片后缀和未登记扩展名不调用 Reader，而是以 HTTP 200 返回 `extraction.status=download_only` 及对应的 `/v1/resource` 地址。
 
 `/v1/resource` 可下载任意公网资源，不按媒体类型拒绝，响应体最大 20 MiB；返回原始 `Content-Type`，并设置 `Content-Disposition: attachment` 和 `X-Content-Type-Options: nosniff`。`/v1/sitemap` 不执行深度爬取、浏览器渲染或缓存，不读取已发现 URL 的正文。
 
-`/v1/content` 的 `resource_kind` 表示调用方应采用的资源处理方式，优先依据明确的响应媒体类型并结合最终 URL 后缀判断；`content_type` 保留上游响应的媒体类型。Reader 返回的 Markdown 响应不应直接据此推断原网页类型。
+`/v1/content` 的 `target.resource_kind` 表示调用方应采用的资源处理方式，优先依据明确的响应媒体类型并结合最终 URL 后缀判断；`target.content_type` 保留目标资源媒体类型。Reader 返回的 Markdown 响应通过 `extraction.reader_content_type` 表示，不能据此覆盖目标资源类型。`extraction.status` 可为 `extracted`、`empty`、`blocked`、`failed`、`timed_out` 或 `download_only`。
+
+## 错误响应
+
+业务错误统一返回 JSON：
+
+```json
+{
+  "error": {
+    "code": "invalid_request",
+    "message": "..."
+  }
+}
+```
+
+当前路由使用 HTTP 400（请求无效）、403（目标被阻止）、413（资源响应过大）、502（上游失败）和 504（上游超时）。HTTP 415 仅为仍需支持的非内容业务保留；`/v1/content` 的图片和未知资源使用上述 HTTP 200 的 `download_only` 响应。
 
 ## 本地验证
 

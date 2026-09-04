@@ -284,3 +284,9 @@ Reader 返回的 `text/plain` 或 Markdown 不能覆盖这个事实。
 - 只有 Refinery 发布宿主机端口；
 - Reader 仍作为独立服务运行；
 - 首版不增加数据库、缓存、任务队列或站点专用适配器。
+
+## 验收边界记录
+
+2026 年 9 月 4 日已完成本地 Rust 门禁和目标服务器 HTTP 场景验收。`TargetFacts`、`ExtractionResult`、`DownloadCapability`、统一错误码、搜索分页未知态以及资源下载安全响应均有本地测试覆盖；目标服务器已验证健康检查、OpenAPI 路径、搜索、内容、资源、sitemap、SSRF 拦截和响应头边界。
+
+验收结论仅覆盖实际观测到的事实：HTTP 200 只证明传输成功；空搜索页的 `has_more` 未知；资源下载成功不证明正文抽取成功；Reader 挑战页、上游超时或不可用均按线上边界记录。目标服务器当前仍返回旧扁平内容响应，且 malformed JSON/缺失字段存在 `text/plain` 框架错误，因此嵌套资料模型和统一 `invalid_request` 响应尚未完成线上收敛。

@@ -2,13 +2,14 @@ use axum::{Json, extract::State};
 
 use crate::{
     error::ApiError,
+    routes::rejection::ApiJson,
     search::{SearchRequest, SearchResponse, searxng},
     state::AppState,
 };
 
 pub async fn search(
     State(state): State<AppState>,
-    Json(request): Json<SearchRequest>,
+    ApiJson(request): ApiJson<SearchRequest>,
 ) -> Result<Json<SearchResponse>, ApiError> {
     request.validate()?;
 

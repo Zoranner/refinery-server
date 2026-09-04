@@ -4,13 +4,14 @@ use crate::{
     content::{links, validate_public_url},
     error::ApiError,
     reader::client,
+    routes::rejection::ApiJson,
     sitemap::{SitemapRequest, SitemapResponse, SitemapUrl, discover, same_origin},
     state::AppState,
 };
 
 pub async fn sitemap(
     State(state): State<AppState>,
-    Json(request): Json<SitemapRequest>,
+    ApiJson(request): ApiJson<SitemapRequest>,
 ) -> Result<Json<SitemapResponse>, ApiError> {
     let requested_url = validate_public_url(&request.url)?;
     let limit = request.limit;

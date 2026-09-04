@@ -5,12 +5,13 @@ use crate::{
     error::ApiError,
     material::{TargetFacts, download_only_response, normalize_reader_result_with_options},
     reader::client,
+    routes::rejection::ApiJson,
     state::AppState,
 };
 
 pub async fn content(
     State(state): State<AppState>,
-    Json(request): Json<ContentRequest>,
+    ApiJson(request): ApiJson<ContentRequest>,
 ) -> Result<Json<crate::material::MaterialContentResponse>, ApiError> {
     let url = request.validate()?;
     let requested_kind = kind_for_url(&url);

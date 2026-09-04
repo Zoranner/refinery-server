@@ -29,9 +29,11 @@
 | 健康检查 | `GET /health` | 200，368 ms | `{"status":"ok"}`，`Content-Type: application/json` | 仅证明服务可达 |
 | OpenAPI | `GET /openapi.json` | 200，12 ms | `openapi=3.0.3`；路径为 `/health`、`/openapi.json`、`/v1/content`、`/v1/resource`、`/v1/search`、`/v1/sitemap` | 仅证明契约文档可取 |
 | 英文搜索第 2 页 | `POST /v1/search`，`{"query":"Rust web scraping libraries","page":2,"limit":5}` | 200，2553 ms | 返回 GitHub 结果；响应为旧扁平字段 `query/page/results` | 200 不证明相关性；未返回 `pagination.has_more` |
+| 英文搜索第 1 页 | `POST /v1/search`，`{"query":"Rust web scraping libraries","page":1,"limit":5}` | 200，3482 ms | 返回 Rust 官网、Bright Data 等结果；响应为旧扁平字段 `query/page/results` | 200 不证明相关性；未返回 `pagination.has_more` |
 | 中文搜索第 2 页 | `POST /v1/search`，`{"query":"网页正文抽取技术","page":2,"limit":5,"language":"zh-CN"}` | 200，327 ms | `results=[]` | 空页的 `has_more` 未知 |
 | 无效搜索 limit | `POST /v1/search`，`{"query":"rust","limit":21}` | 400，125 ms | JSON `error.code=invalid_request` | 仅覆盖业务校验 |
 | 静态 HTML | `POST /v1/content`，`{"url":"https://example.com/","max_chars":1000}` | 200，1108 ms | `resource_kind=html`，正文含 `Example Domain`，`next_offset=null` | 线上仍返回旧扁平响应；Reader 媒体类型为 `text/plain; charset=utf-8` |
+| 纯文本 Markdown | `POST /v1/content`，`{"url":"https://raw.githubusercontent.com/rust-lang/rustlings/main/README.md","max_chars":1000}` | 200，1328 ms | `resource_kind=text`，正文含 Rustlings README，`content_type=text/plain; charset=utf-8` | 线上仍返回旧扁平响应，不证明长文截断完整 |
 | 动态 HTML | `POST /v1/content`，`{"url":"https://www.wikipedia.org/","max_chars":1000}` | 502，33449 ms | JSON `fetch_failed` | 上游不可用边界，不能宣称动态抽取成功 |
 | PDF 内容 | `POST /v1/content`，`{"url":"https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf","max_chars":1000}` | 200，1529 ms | 标题 `Just a moment...`，正文含 security verification/403；`resource_kind=pdf` | Reader 挑战页应判定 `blocked`，当前部署仍作为普通正文返回；不证明 PDF 抽取成功 |
 | 图片内容 | `POST /v1/content`，`{"url":"https://www.w3.org/Icons/w3c_home.png"}` | 415，2 ms | JSON `error.code=resource_download_required`，返回 `/v1/resource` | 当前线上仍用 415，而设计目标允许 `download_only` 成功响应 |
@@ -39,10 +41,14 @@
 | offset 续读 | `POST /v1/content`，`{"url":"https://example.com/","offset":5,"max_chars":1000}` | 200，504 ms | `offset=5`，`next_offset=null`，仍为旧扁平响应 | 未验证长文截断；线上响应未迁移到嵌套分页模型 |
 | HTML 资源下载 | `GET /v1/resource?url=https%3A%2F%2Fexample.com%2F` | 200，1949 ms | `Content-Type: text/html`；`Content-Disposition: attachment`；`X-Content-Type-Options: nosniff` | 下载成功不证明可阅读 |
 | PDF 资源下载 | `GET /v1/resource?url=https%3A%2F%2Fwww.w3.org%2FWAI%2FER%2Ftests%2Fxhtml%2Ftestfiles%2Fresources%2Fpdf%2Fdummy.pdf` | 200，479 ms | `Content-Type: application/pdf`；`Content-Disposition: attachment`；`nosniff`；13264 bytes | 下载成功不证明 PDF 抽取成功 |
+| 大/慢 PDF 资源 | `GET /v1/resource?url=https%3A%2F%2Farxiv.org%2Fpdf%2F1706.03762` | 504，20023 ms | JSON `fetch_timeout`（73 bytes） | 资源阶段超时；不宣称上游 PDF 可下载 |
 | 有 sitemap 的站点 | `POST /v1/sitemap`，`{"url":"https://www.sitemaps.org/","limit":20}` | 200，2212 ms | 返回 20 个 `source=sitemap` URL，`truncated=true` | 仅证明发现和截断 |
 | 无 sitemap 的站点 | `POST /v1/sitemap`，`{"url":"https://example.com/","limit":20}` | 200，1945 ms | `urls=[]`，`truncated=false`，`warnings=[]` | 空结果不证明站点绝对无链接 |
+| 无 sitemap 但有同源链接 | `POST /v1/sitemap`，`{"url":"https://httpbin.org/","limit":20}` | 200，5811 ms | 返回 `https://httpbin.org/forms/post`，`source=page_link` | 仅证明一层同源链接回退 |
 | 非 HTTP 协议 | `POST /v1/content`，`{"url":"ftp://example.com/file"}` | 403，2 ms | JSON `error.code=blocked_target` | 策略拦截 |
-| 私有/回环地址 | content `http://127.0.0.1/admin`、resource 同 URL、sitemap `http://192.168.1.10/` | 均 403，2–3 ms | JSON `error.code=blocked_target` | 仅覆盖字面量目标，未宣称 DNS rebinding |
+| content blocked_target | `POST /v1/content`，`{"url":"http://127.0.0.1/admin"}` | 403，3 ms | JSON `error.code=blocked_target` | 仅覆盖字面量目标，未宣称 DNS rebinding |
+| resource blocked_target | `GET /v1/resource?url=http%3A%2F%2F127.0.0.1%2Fadmin` | 403，2 ms | JSON `error.code=blocked_target` | 仅覆盖字面量目标，未宣称 DNS rebinding |
+| sitemap blocked_target | `POST /v1/sitemap`，`{"url":"http://127.0.0.1/admin"}` | 403，1 ms | JSON `error.code=blocked_target` | 仅覆盖字面量目标，未宣称 DNS rebinding |
 | malformed JSON | `POST /v1/sitemap`，请求体 `{` | 400，4 ms | `text/plain; charset=utf-8`，框架解析错误 | 未满足统一 JSON `invalid_request` |
 | 缺失必填字段 | content/search/sitemap 分别发送 `{}` | 均 422，2–3 ms | `text/plain; charset=utf-8`，缺失 `url`/`query` | 未满足统一 JSON `invalid_request` |
 
@@ -53,6 +59,7 @@
 - 图片和未知资源当前返回 415 `resource_download_required`，与目标模型中的 200 `download_only` 表达不一致。
 - malformed JSON 和缺失字段由 Axum 框架返回 `text/plain` 的 400/422，未统一映射为 JSON `invalid_request`。
 - 动态 HTML 场景本次返回 502 `fetch_failed`，不能据此判断动态抽取链路可用。
+- 大/慢 PDF 资源本次返回 504 `fetch_timeout`，不能据此判断 arXiv 或其他大文件下载稳定性。
 
 ## 非声明事项
 

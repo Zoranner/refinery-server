@@ -69,7 +69,6 @@ POST /v1/content
     "status": "extracted",
     "engine": "reader_auto",
     "format": "markdown",
-    "reason": null,
     "reader_content_type": "text/plain; charset=utf-8",
     "title": "页面标题",
     "markdown": "正文",
@@ -109,7 +108,7 @@ GET /v1/resource?url=https%3A%2F%2Fexample.com%2Fdiagram.png
 
 `/v1/resource` 可下载任意公网资源，不按媒体类型拒绝，响应体最大 20 MiB；返回原始 `Content-Type`，并设置 `Content-Disposition: attachment` 和 `X-Content-Type-Options: nosniff`。`/v1/sitemap` 不执行深度爬取、浏览器渲染或缓存，不读取已发现 URL 的正文。
 
-`/v1/content` 的 `target.resource_kind` 表示调用方应采用的资源处理方式，优先依据明确的响应媒体类型并结合最终 URL 后缀判断；`target.content_type` 保留目标资源媒体类型。Reader 返回的 Markdown 响应通过 `extraction.reader_content_type` 表示，不能据此覆盖目标资源类型。`extraction.status` 可为 `extracted`、`empty`、`blocked`、`failed`、`timed_out` 或 `download_only`。
+`/v1/content` 的 `target.resource_kind` 表示调用方应采用的资源处理方式，优先依据明确的响应媒体类型并结合最终 URL 后缀判断；`target.content_type` 保留目标资源媒体类型。Reader 返回的 Markdown 响应通过 `extraction.reader_content_type` 表示，不能据此覆盖目标资源类型。`extraction.status` 可为 `extracted`、`empty`、`blocked`、`failed`、`timed_out` 或 `download_only`；当前路由对 Reader 失败和超时分别返回 HTTP 502/504，因此不会从 `/v1/content` 发出 `failed` 或 `timed_out` 的成功响应。
 
 ## 错误响应
 

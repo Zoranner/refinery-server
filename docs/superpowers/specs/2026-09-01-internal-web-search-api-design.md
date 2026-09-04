@@ -162,7 +162,6 @@ POST /v1/content
     "status": "extracted",
     "engine": "reader_auto",
     "format": "markdown",
-    "reason": null,
     "reader_content_type": "text/plain; charset=utf-8",
     "title": "页面标题",
     "markdown": "正文……[相关 PDF](https://example.com/report.pdf)",
@@ -211,7 +210,7 @@ POST /v1/content
 
 已知图片后缀包括 `.avif`、`.bmp`、`.gif`、`.ico`、`.jpeg`、`.jpg`、`.png`、`.svg`、`.tif`、`.tiff`、`.webp`。
 
-图片和 PDF 的文本读取与原始下载分开处理。`/v1/content` 只返回可供模型阅读的文本，不直接返回二进制；HTML 页面中可识别的图片和 PDF 链接随正文链接一起返回。扫描型 PDF 或 Reader 无法形成文本的 PDF 以 `extraction.status=empty` 或 `failed` 表达，并保留原始资源 URL，调用方可以通过 `/v1/resource` 下载原文件。
+图片和 PDF 的文本读取与原始下载分开处理。`/v1/content` 只返回可供模型阅读的文本，不直接返回二进制；HTML 页面中可识别的图片和 PDF 链接随正文链接一起返回。扫描型 PDF 或 Reader 返回空正文时，成功响应以 `extraction.status=empty` 表达并保留下载能力。Reader 抽取失败或超时由当前路由分别映射为 HTTP 502 `fetch_failed` 或 HTTP 504 `fetch_timeout`，不会发出带 `extraction.status=failed` 或 `timed_out` 的成功响应；这两个 `MaterialStatus` 值目前只保留在内部模型和契约枚举中。
 
 ### 原始资源下载
 
@@ -244,7 +243,6 @@ HTML Markdown 中的外部资源链接可以由调用方改写为对应的 `/v1/
     "engine": "reader_auto",
     "format": "binary",
     "reason": "该资源不支持文本抽取，请通过资源下载接口获取原文件",
-    "reader_content_type": null,
     "title": null,
     "markdown": "",
     "links": []
@@ -328,7 +326,7 @@ robots.txt 和 sitemap 文档必须通过与内容接口相同的公网 URL 校�
 
 `refinery` 先执行自身的 URL 策略和路径分类。只有 `html`、`text`、`pdf` 会交给 Jina Reader；`refinery` 通过内部 HTTP POST 调用 Reader，Reader 对公网目标执行下载和抽取。Reader 返回的 Markdown 是 HTML、纯文本和可提取 PDF 的权威内容；`refinery` 不返回原始 HTML、脚本、样式或页面布局，并把保留下来的相对链接按最终 URL 转为绝对 URL。
 
-PDF 支持必须以固定 PDF 样本验证 Reader 当前固定镜像的实际输出后才纳入；若抽取为空或失败，响应保留 `target.resource_kind=pdf`、下载能力和对应的抽取状态。首版不识别扫描件中的图片文字，也不尝试恢复复杂版式。
+PDF 支持必须以固定 PDF 样本验证 Reader 当前固定镜像的实际输出后才纳入；抽取为空时返回带 `target.resource_kind=pdf` 的成功响应并将状态设为 `empty`；抽取失败或超时则返回 HTTP 502/504 错误体，不伪装为成功响应。首版不识别扫描件中的图片文字，也不尝试恢复复杂版式。
 
 图片仅作为可发现资源保留，首版不做视觉内容理解。若后续出现明确需求，再增加独立的 OCR 或视觉处理能力。
 

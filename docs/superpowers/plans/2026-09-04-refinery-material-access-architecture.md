@@ -373,7 +373,7 @@ async fn empty_second_page_does_not_claim_end_of_results() {
     let body = json_body(response).await;
     assert_eq!(body["results"].as_array().unwrap().len(), 0);
     assert_eq!(body["pagination"]["has_more"], serde_json::Value::Null);
-    assert_eq!(body["pagination"]["source_status"], "ok");
+    assert_eq!(body["diagnostics"]["source_status"], "ok");
 }
 ```
 

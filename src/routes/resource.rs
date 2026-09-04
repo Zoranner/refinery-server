@@ -1,12 +1,14 @@
 use axum::{
     body::Body,
-    extract::{Query, State},
+    extract::State,
     http::{HeaderValue, StatusCode, header},
     response::Response,
 };
 use serde::Deserialize;
 
-use crate::{content::validate_public_url, error::ApiError, state::AppState};
+use crate::{
+    content::validate_public_url, error::ApiError, routes::rejection::ApiQuery, state::AppState,
+};
 
 #[derive(Deserialize)]
 pub struct ResourceQuery {
@@ -15,7 +17,7 @@ pub struct ResourceQuery {
 
 pub async fn resource(
     State(state): State<AppState>,
-    Query(query): Query<ResourceQuery>,
+    ApiQuery(query): ApiQuery<ResourceQuery>,
 ) -> Result<Response, ApiError> {
     let url = validate_public_url(&query.url)?;
     let resource = state

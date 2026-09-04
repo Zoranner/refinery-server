@@ -31,7 +31,7 @@ docker network create refinery
 Copy-Item .env.example .env
 ```
 
-`.env` 只保留在实际部署目录中，不应回写源码仓库。变量说明见 `.env.example`；不要把 SearXNG 专属配置或代理配置写入 Refinery 的环境文件。
+`.env` 只保留在实际部署目录中，不应回写源码仓库。变量说明见 `.env.example`，包括 `RESOURCE_REQUEST_TIMEOUT_SECONDS` 资源下载超时和 `READER_REQUEST_TIMEOUT_SECONDS` Reader 抽取超时；不要把 SearXNG 专属配置或代理配置写入 Refinery 的环境文件。
 
 不要为 SearXNG 或 Reader 添加 `ports`。员工和内网应用只访问 Refinery；SearXNG 的配置位于 `deploy/app/settings.yml`。
 

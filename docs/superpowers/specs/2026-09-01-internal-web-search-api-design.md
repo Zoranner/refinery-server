@@ -240,7 +240,7 @@ HTML Markdown 中的外部资源链接可以由调用方改写为对应的 `/v1/
   },
   "extraction": {
     "status": "download_only",
-    "engine": "reader_auto",
+    "engine": "none",
     "format": "binary",
     "reason": "该资源不支持文本抽取，请通过资源下载接口获取原文件",
     "title": null,

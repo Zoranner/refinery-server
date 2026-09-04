@@ -161,6 +161,10 @@ pub fn is_public_ipv4(address: std::net::Ipv4Addr) -> bool {
 }
 
 pub fn is_public_ipv6(address: std::net::Ipv6Addr) -> bool {
+    if let Some(mapped) = address.to_ipv4_mapped() {
+        return is_public_ipv4(mapped);
+    }
+
     let segments = address.segments();
 
     !address.is_loopback()
@@ -169,4 +173,22 @@ pub fn is_public_ipv6(address: std::net::Ipv6Addr) -> bool {
         && (segments[0] & 0xffc0) != 0xfe80
         && (segments[0] & 0xfe00) != 0xfc00
         && !(segments[0] == 0x2001 && segments[1] == 0x0db8)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::is_public_ipv6;
+
+    #[test]
+    fn rejects_ipv4_mapped_loopback_and_private_addresses() {
+        for raw in ["::ffff:127.0.0.1", "::ffff:10.0.0.1", "::ffff:192.168.1.1"] {
+            let address = raw.parse().unwrap();
+            assert!(!is_public_ipv6(address), "{raw}");
+        }
+    }
+
+    #[test]
+    fn accepts_genuinely_public_ipv6_address() {
+        assert!(is_public_ipv6("2001:4860:4860::8888".parse().unwrap()));
+    }
 }

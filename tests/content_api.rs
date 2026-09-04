@@ -167,6 +167,7 @@ async fn content_reports_download_only_without_calling_reader() {
     let body = json_body(response).await;
     assert_eq!(body["target"]["resource_kind"], "unknown");
     assert_eq!(body["extraction"]["status"], "download_only");
+    assert_eq!(body["extraction"]["engine"], "none");
     assert_eq!(body["download"]["available"], true);
 }
 
@@ -197,6 +198,7 @@ async fn content_reports_image_download_only_without_calling_reader() {
             }
         );
         assert_eq!(body["extraction"]["status"], "download_only", "{url}");
+        assert_eq!(body["extraction"]["engine"], "none", "{url}");
         assert_eq!(body["download"]["available"], true, "{url}");
         assert_eq!(
             body["download"]["resource_url"],
@@ -204,6 +206,25 @@ async fn content_reports_image_download_only_without_calling_reader() {
             "{url}"
         );
     }
+}
+
+#[tokio::test]
+async fn content_uses_redirected_resource_type_for_target_facts() {
+    let reader = start_redirect_reader().await;
+    let response = post_content(
+        app(&format!("http://{}", reader.address)),
+        json!({ "url": "https://example.test/download" }),
+    )
+    .await;
+
+    assert_eq!(response.status(), StatusCode::OK);
+    let body = json_body(response).await;
+    assert_eq!(
+        body["target"]["final_url"],
+        "https://example.test/report.pdf"
+    );
+    assert_eq!(body["target"]["resource_kind"], "pdf");
+    assert_eq!(body["target"]["content_type"], "application/pdf");
 }
 
 fn app(reader_base_url: &str) -> Router {
@@ -281,6 +302,32 @@ async fn start_reader_body(body: &str) -> TestReader {
     });
 
     TestReader { address }
+}
+
+async fn start_redirect_reader() -> TestReader {
+    let router = Router::new().route("/", post(redirect_reader_response));
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let address = listener.local_addr().unwrap();
+
+    tokio::spawn(async move {
+        axum::serve(listener, router).await.unwrap();
+    });
+
+    TestReader { address }
+}
+
+async fn redirect_reader_response(
+    headers: HeaderMap,
+    ExtractJson(_body): ExtractJson<Value>,
+) -> (HeaderMap, String) {
+    assert_eq!(headers["x-engine"], "auto");
+    let mut response_headers = HeaderMap::new();
+    response_headers.insert("content-type", "application/pdf".parse().unwrap());
+    response_headers.insert(
+        "x-responded-url",
+        "https://example.test/report.pdf".parse().unwrap(),
+    );
+    (response_headers, "PDF content".to_owned())
 }
 
 async fn reader_body_response(

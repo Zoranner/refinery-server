@@ -89,4 +89,5 @@ async fn openapi_describes_material_response_and_search_pagination() {
     assert!(document["paths"]["/v1/sitemap"]["post"].is_object());
     assert!(document["paths"]["/v1/sitemap"]["post"]["responses"].is_object());
     assert!(document["paths"]["/v1/sitemap"]["post"]["responses"]["413"].is_null());
+    assert!(document["paths"]["/v1/sitemap"]["post"]["responses"]["504"].is_null());
 }

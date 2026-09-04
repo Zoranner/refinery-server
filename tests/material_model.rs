@@ -4,13 +4,25 @@ fn material_model_keeps_target_kind_separate_from_extraction_media_type() {
         "https://example.test/report.pdf".parse().unwrap(),
         "https://example.test/report.pdf".parse().unwrap(),
         refinery::content::ResourceKind::Pdf,
-        "text/plain; charset=utf-8".to_owned(),
+        "application/pdf".to_owned(),
     );
-    let extraction =
-        refinery::material::ExtractionResult::blocked("reader_auto", "目标站点返回挑战页");
+    let extraction = refinery::material::ExtractionResult {
+        status: refinery::material::MaterialStatus::Blocked,
+        engine: "reader_auto".to_owned(),
+        format: "markdown".to_owned(),
+        reason: Some("目标站点返回挑战页".to_owned()),
+        reader_content_type: Some("text/plain; charset=utf-8".to_owned()),
+        title: None,
+        markdown: String::new(),
+        links: Vec::new(),
+    };
 
     assert_eq!(target.resource_kind, refinery::content::ResourceKind::Pdf);
-    assert_eq!(target.content_type, "text/plain; charset=utf-8");
+    assert_eq!(target.content_type, "application/pdf");
+    assert_eq!(
+        extraction.reader_content_type.as_deref(),
+        Some("text/plain; charset=utf-8")
+    );
     assert_eq!(
         extraction.status,
         refinery::material::MaterialStatus::Blocked
@@ -27,7 +39,7 @@ fn material_response_supports_capabilities_pagination_diagnostics_and_json_seria
             "application/pdf".to_owned(),
         ),
         extraction: refinery::material::ExtractionResult::download_only(
-            "reader_auto",
+            "none",
             "PDF 不提供可抽取文本",
         ),
         download: refinery::material::DownloadCapability {
@@ -53,6 +65,7 @@ fn material_response_supports_capabilities_pagination_diagnostics_and_json_seria
 
     assert_eq!(json["target"]["resource_kind"], "pdf");
     assert_eq!(json["target"]["content_type"], "application/pdf");
+    assert_eq!(json["extraction"]["engine"], "none");
     assert_eq!(json["extraction"]["status"], "download_only");
     assert_eq!(json["download"]["available"], true);
     assert_eq!(

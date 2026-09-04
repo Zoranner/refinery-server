@@ -123,7 +123,7 @@ GET /v1/resource?url=https%3A%2F%2Fexample.com%2Fdiagram.png
 }
 ```
 
-当前路由使用 HTTP 400（请求无效）、403（目标被阻止）、502（上游失败）和 504（上游超时）；`/v1/content` 与 `/v1/resource` 另可返回 413（资源响应过大）。`/v1/sitemap` 当前会将抓取器和回退读取错误转为继续处理或 warning，不对外发出 413。HTTP 415 仅为仍需支持的非内容业务保留；`/v1/content` 的图片和未知资源使用上述 HTTP 200 的 `download_only` 响应。
+当前路由使用 HTTP 400（请求无效）、403（目标被阻止）、502（上游失败）和 504（上游超时）；`/v1/content` 与 `/v1/resource` 另可返回 413（资源响应过大）。`/v1/sitemap` 当前会将抓取器和回退读取错误转为继续处理或 warning，因此不对外声明 504，也不发出 413。HTTP 415 仅为仍需支持的非内容业务保留；`/v1/content` 的图片和未知资源使用上述 HTTP 200 的 `download_only` 响应。
 
 ## 本地验证
 
@@ -165,7 +165,7 @@ refinery -> reader:8081
 
 只有 `refinery` 发布内网端口 `8080`。SearXNG 和 Reader 在容器内部监听 `0.0.0.0`，但没有 `ports` 配置，因此不会被宿主机或员工网段直接访问。具体配置与启动方式见 [deploy/README.md](deploy/README.md)。
 
-部署目录中的 `.env.example` 需要复制为同目录 `.env`。其中包含 HTTP 监听地址/端口、SearXNG 和 Reader 内部地址，以及 Reader 抽取超时；实际 `.env` 不应提交到仓库。
+部署目录中的 `.env.example` 需要复制为同目录 `.env`。其中包含 HTTP 监听地址/端口、SearXNG 和 Reader 内部地址、`RESOURCE_REQUEST_TIMEOUT_SECONDS` 资源下载超时，以及 Reader 抽取超时；实际 `.env` 不应提交到仓库。
 
 当前 Compose 使用 `ghcr.io/jina-ai/reader:oss`。这不阻断 Refinery 源码构建和镜像发布；正式部署前可将其替换为已在目标联网服务器验收的不可变 digest。验收至少覆盖：
 

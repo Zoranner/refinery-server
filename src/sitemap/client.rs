@@ -132,3 +132,31 @@ fn map_error(error: reqwest::Error) -> ApiError {
         ApiError::fetch_failed()
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::ensure_public_dns;
+    use crate::error::ApiError;
+
+    #[tokio::test]
+    async fn ensure_public_dns_rejects_ipv4_mapped_private_addresses() {
+        for raw in [
+            "http://[::ffff:127.0.0.1]:80/",
+            "http://[::ffff:10.0.0.1]:80/",
+            "http://[::ffff:192.168.1.1]:80/",
+        ] {
+            let url = url::Url::parse(raw).unwrap();
+            let result = ensure_public_dns(&url).await;
+            assert!(
+                matches!(
+                    result.as_ref(),
+                    Err(ApiError {
+                        code: "blocked_target",
+                        ..
+                    })
+                ),
+                "{raw}: {result:?}"
+            );
+        }
+    }
+}

@@ -12,6 +12,44 @@ use tower::ServiceExt;
 use url::Url;
 
 #[tokio::test]
+async fn malformed_resource_query_returns_json_invalid_request() {
+    let response = app(Arc::new(FixtureFetcher {
+        content_type: "application/octet-stream".to_owned(),
+        bytes: Vec::new(),
+    }))
+    .oneshot(
+        Request::get("/v1/resource?url=%")
+            .body(Body::empty())
+            .unwrap(),
+    )
+    .await
+    .unwrap();
+
+    assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+    assert_eq!(response.headers()["content-type"], "application/json");
+    let body = response.into_body().collect().await.unwrap().to_bytes();
+    let body: serde_json::Value = serde_json::from_slice(&body).unwrap();
+    assert_eq!(body["error"]["code"], "invalid_request");
+}
+
+#[tokio::test]
+async fn missing_resource_query_returns_json_invalid_request() {
+    let response = app(Arc::new(FixtureFetcher {
+        content_type: "application/octet-stream".to_owned(),
+        bytes: Vec::new(),
+    }))
+    .oneshot(Request::get("/v1/resource").body(Body::empty()).unwrap())
+    .await
+    .unwrap();
+
+    assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+    assert_eq!(response.headers()["content-type"], "application/json");
+    let body = response.into_body().collect().await.unwrap().to_bytes();
+    let body: serde_json::Value = serde_json::from_slice(&body).unwrap();
+    assert_eq!(body["error"]["code"], "invalid_request");
+}
+
+#[tokio::test]
 async fn resource_response_reports_original_media_type_and_download_capability() {
     let fetcher = Arc::new(FixtureFetcher {
         content_type: "application/pdf".to_owned(),

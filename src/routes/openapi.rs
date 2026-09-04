@@ -116,8 +116,7 @@ pub async fn document() -> Json<Value> {
                         },
                         "400": { "$ref": "#/components/responses/InvalidRequest" },
                         "403": { "$ref": "#/components/responses/BlockedTarget" },
-                        "502": { "$ref": "#/components/responses/FetchFailed" },
-                        "504": { "$ref": "#/components/responses/FetchTimeout" }
+                        "502": { "$ref": "#/components/responses/FetchFailed" }
                     }
                 }
             }
@@ -298,7 +297,11 @@ pub async fn document() -> Json<Value> {
                         "status": {
                             "$ref": "#/components/schemas/MaterialStatus"
                         },
-                        "engine": { "type": "string", "example": "reader_auto" },
+                        "engine": {
+                            "type": "string",
+                            "description": "Reader 抽取使用 reader_auto；download_only 使用 none。",
+                            "example": "reader_auto"
+                        },
                         "format": { "type": "string", "example": "markdown" },
                         "reason": { "type": "string", "nullable": true },
                         "reader_content_type": { "type": "string", "nullable": true },

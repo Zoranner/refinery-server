@@ -77,7 +77,7 @@ pub(crate) fn download_only_response(target: TargetFacts) -> MaterialContentResp
     MaterialContentResponse {
         target,
         extraction: ExtractionResult::download_only(
-            "reader_auto",
+            "none",
             "该资源不支持文本抽取，请通过资源下载接口获取原文件",
         ),
         download: DownloadCapability {

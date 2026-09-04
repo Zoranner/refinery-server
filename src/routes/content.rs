@@ -1,7 +1,7 @@
 use axum::{Json, extract::State};
 
 use crate::{
-    content::{ContentRequest, ResourceKind, kind_for_url, target_content_type},
+    content::{ContentRequest, ResourceKind, kind_for_response, kind_for_url, target_content_type},
     error::ApiError,
     material::{TargetFacts, download_only_response, normalize_reader_result_with_options},
     reader::client,
@@ -15,13 +15,13 @@ pub async fn content(
 ) -> Result<Json<crate::material::MaterialContentResponse>, ApiError> {
     let url = request.validate()?;
     let requested_kind = kind_for_url(&url);
-    let target_content_type = target_content_type(&url, &requested_kind);
+    let initial_content_type = target_content_type(&url, &requested_kind);
     if matches!(requested_kind, ResourceKind::Image | ResourceKind::Unknown) {
         let target = TargetFacts::new(
             url.clone(),
             url.clone(),
             requested_kind,
-            target_content_type,
+            initial_content_type,
         );
         return Ok(Json(download_only_response(target)));
     }
@@ -34,7 +34,9 @@ pub async fn content(
     )
     .await?;
 
-    let target = TargetFacts::new(url, document.final_url, requested_kind, target_content_type);
+    let actual_kind = kind_for_response(&document.final_url, &document.content_type);
+    let target_content_type = target_content_type(&document.final_url, &actual_kind);
+    let target = TargetFacts::new(url, document.final_url, actual_kind, target_content_type);
     Ok(Json(normalize_reader_result_with_options(
         target,
         document.markdown,

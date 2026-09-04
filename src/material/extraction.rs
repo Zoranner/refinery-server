@@ -23,13 +23,12 @@ pub fn normalize_reader_result(
 }
 
 pub(crate) fn normalize_reader_result_with_options(
-    mut target: TargetFacts,
+    target: TargetFacts,
     markdown: String,
     reader_content_type: String,
     offset: usize,
     max_chars: usize,
 ) -> MaterialContentResponse {
-    target.content_type = reader_content_type;
     let resource_url = resource_url(&target.requested_url);
     let (status, reason) = if let Some(reason) = challenge_reason(&markdown) {
         (MaterialStatus::Blocked, Some(reason.to_owned()))
@@ -49,6 +48,7 @@ pub(crate) fn normalize_reader_result_with_options(
             engine: "reader_auto".to_owned(),
             format: "markdown".to_owned(),
             reason,
+            reader_content_type: Some(reader_content_type),
             title,
             markdown: part.markdown,
             links: response_links,

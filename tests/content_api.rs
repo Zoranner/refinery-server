@@ -35,7 +35,9 @@ async fn content_forwards_only_fixed_reader_options_and_returns_current_chunk_li
         "https://example.test/docs/article"
     );
     assert_eq!(body["target"]["resource_kind"], "html");
+    assert_eq!(body["target"]["content_type"], "text/html");
     assert_eq!(body["extraction"]["title"], "Example article");
+    assert_eq!(body["extraction"]["reader_content_type"], "text/markdown");
     assert_eq!(
         body["extraction"]["links"],
         json!([{
@@ -147,6 +149,8 @@ async fn content_marks_reader_challenge_as_blocked_instead_of_success() {
     assert_eq!(response.status(), StatusCode::OK);
     let body = json_body(response).await;
     assert_eq!(body["target"]["resource_kind"], "pdf");
+    assert_eq!(body["target"]["content_type"], "application/pdf");
+    assert_eq!(body["extraction"]["reader_content_type"], "text/plain");
     assert_eq!(body["extraction"]["status"], "blocked");
     assert_eq!(body["download"]["available"], true);
 }
@@ -182,6 +186,14 @@ async fn content_reports_image_download_only_without_calling_reader() {
                 "image"
             } else {
                 "unknown"
+            }
+        );
+        assert_eq!(
+            body["target"]["content_type"],
+            if url.ends_with(".png") {
+                "image/png"
+            } else {
+                "application/octet-stream"
             }
         );
         assert_eq!(body["extraction"]["status"], "download_only", "{url}");

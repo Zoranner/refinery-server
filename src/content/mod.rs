@@ -73,6 +73,37 @@ pub fn kind_for_url(url: &Url) -> ResourceKind {
     }
 }
 
+pub fn target_content_type(url: &Url, kind: &ResourceKind) -> String {
+    let path = url.path().to_ascii_lowercase();
+    let extension = path.rsplit('.').next().unwrap_or_default();
+
+    match kind {
+        ResourceKind::Html => "text/html",
+        ResourceKind::Text => match extension {
+            "csv" => "text/csv",
+            "json" => "application/json",
+            "xml" => "application/xml",
+            "yaml" | "yml" => "text/yaml",
+            _ => "text/plain",
+        },
+        ResourceKind::Pdf => "application/pdf",
+        ResourceKind::Image => match extension {
+            "avif" => "image/avif",
+            "bmp" => "image/bmp",
+            "gif" => "image/gif",
+            "ico" => "image/x-icon",
+            "jpeg" | "jpg" => "image/jpeg",
+            "png" => "image/png",
+            "svg" => "image/svg+xml",
+            "tif" | "tiff" => "image/tiff",
+            "webp" => "image/webp",
+            _ => "image/*",
+        },
+        ResourceKind::Unknown => "application/octet-stream",
+    }
+    .to_owned()
+}
+
 pub fn kind_for_response(url: &Url, content_type: &str) -> ResourceKind {
     let mime = content_type
         .split(';')

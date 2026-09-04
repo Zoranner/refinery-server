@@ -38,3 +38,12 @@
 
 - OpenAPI 仍描述旧 `ContentResponse`，按任务边界留给 Task 6 更新。
 - `Diagnostics` 当前沿用空值字段，Reader HTTP 状态和耗时采集留给后续预算/诊断任务。
+
+## 修复轮次 1
+
+- 修正 `TargetFacts.content_type`：按目标 URL 和 `resource_kind` 推导目标媒体类型，Reader 返回的媒体类型不再覆盖目标事实。
+- 新增 `ExtractionResult.reader_content_type`，独立保留 Reader 实际响应媒体类型；未调用 Reader 的 `download_only` 响应不填该字段。
+- 新增 PDF、HTML、文本、图片和未知资源的目标媒体类型映射，并补充接口断言。
+- `cargo test --test content_api`：8 passed。
+- `cargo test --all-targets --all-features`：全部通过。
+- `cargo clippy --all-targets --all-features -- -D warnings`：通过。

@@ -59,6 +59,8 @@ pub struct ExtractionResult {
     pub format: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub reason: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub reader_content_type: Option<String>,
     pub title: Option<String>,
     pub markdown: String,
     pub links: Vec<crate::content::links::Link>,
@@ -71,6 +73,7 @@ impl ExtractionResult {
             engine: engine.into(),
             format: "markdown".to_owned(),
             reason: Some(reason.into()),
+            reader_content_type: None,
             title: None,
             markdown: String::new(),
             links: Vec::new(),
@@ -83,6 +86,7 @@ impl ExtractionResult {
             engine: engine.into(),
             format: "binary".to_owned(),
             reason: Some(reason.into()),
+            reader_content_type: None,
             title: None,
             markdown: String::new(),
             links: Vec::new(),

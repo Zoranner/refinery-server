@@ -28,7 +28,7 @@ async fn content_forwards_only_fixed_reader_options_and_returns_current_chunk_li
     let body = json_body(response).await;
     assert_eq!(body["requested_url"], "https://example.test/docs/article");
     assert_eq!(body["final_url"], "https://example.test/docs/article");
-    assert_eq!(body["content_kind"], "html");
+    assert_eq!(body["resource_kind"], "html");
     assert_eq!(body["title"], "Example article");
     assert_eq!(
         body["links"],
@@ -96,7 +96,7 @@ fn content_marks_known_plain_text_extensions_as_text() {
     );
 
     assert_eq!(
-        serde_json::to_value(response).unwrap()["content_kind"],
+        serde_json::to_value(response).unwrap()["resource_kind"],
         "text"
     );
 }
@@ -107,15 +107,15 @@ fn content_uses_unambiguous_response_media_types() {
 
     assert_eq!(
         refinery::content::kind_for_response(&url, "application/pdf"),
-        refinery::content::ContentKind::Pdf
+        refinery::content::ResourceKind::Pdf
     );
     assert_eq!(
         refinery::content::kind_for_response(&url, "image/png"),
-        refinery::content::ContentKind::Image
+        refinery::content::ResourceKind::Image
     );
     assert_eq!(
         refinery::content::kind_for_response(&url, "application/json"),
-        refinery::content::ContentKind::Text
+        refinery::content::ResourceKind::Text
     );
 }
 

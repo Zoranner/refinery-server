@@ -51,7 +51,7 @@ GET /v1/resource?url=https%3A%2F%2Fexample.com%2Fdiagram.png
 
 `/v1/resource` 可下载任意公网资源，不按媒体类型拒绝，响应体最大 20 MiB；返回原始 `Content-Type`，并设置 `Content-Disposition: attachment` 和 `X-Content-Type-Options: nosniff`。`/v1/sitemap` 不执行深度爬取、浏览器渲染或缓存，不读取已发现 URL 的正文。
 
-`/v1/content` 的 `content_kind` 表示调用方应采用的内容处理方式，优先依据明确的响应媒体类型并结合最终 URL 后缀判断；`content_type` 保留上游响应的媒体类型。Reader 返回的 Markdown 响应不应直接据此推断原网页类型。
+`/v1/content` 的 `resource_kind` 表示调用方应采用的资源处理方式，优先依据明确的响应媒体类型并结合最终 URL 后缀判断；`content_type` 保留上游响应的媒体类型。Reader 返回的 Markdown 响应不应直接据此推断原网页类型。
 
 ## 本地验证
 

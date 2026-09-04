@@ -169,7 +169,7 @@ Expected: validation, query mapping, result mapping and upstream failure tests p
 
 - Produces `ContentRequest { url, offset, max_chars }`.
 - Produces `reader::client::read(client: &reqwest::Client, base_url: &str, url: &Url) -> Result<ReaderDocument, ApiError>`.
-- Produces `ContentResponse { requested_url, final_url, content_kind, content_type, title, markdown, links, offset, next_offset, truncated, warnings }`.
+- Produces `ContentResponse { requested_url, final_url, resource_kind, content_type, title, markdown, links, offset, next_offset, truncated, warnings }`.
 - Produces `POST /v1/content`.
 
 - [ ] **Step 1: 写出内容接口失败测试**
@@ -184,7 +184,7 @@ causes a Reader `POST /` request with JSON `{ "url": "https://example.test/artic
 
 Add separate tests that reject `file://`, `ftp://`, `127.0.0.1`, `::1`, `169.254.169.254`, and `192.168.0.1` with `403/blocked_target`; and that reject `max_chars` outside `1000..=24000` with `400/invalid_request`.
 
-Add classification tests proving that `.txt`, `.md`, `.csv`, `.json`, `.xml`, `.yaml`, and `.yml` are sent to Reader and returned as `content_kind: text`; `.pdf` is sent to Reader and returned as `pdf`; known image extensions and unregistered extensions do not call Reader and return `415/resource_download_required` with an encoded `/v1/resource` URL.
+Add classification tests proving that `.txt`, `.md`, `.csv`, `.json`, `.xml`, `.yaml`, and `.yml` are sent to Reader and returned as `resource_kind: text`; `.pdf` is sent to Reader and returned as `pdf`; known image extensions and unregistered extensions do not call Reader and return `415/resource_download_required` with an encoded `/v1/resource` URL.
 
 - [ ] **Step 2: 运行测试确认失败**
 

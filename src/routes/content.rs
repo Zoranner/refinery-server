@@ -1,7 +1,7 @@
 use axum::{Json, extract::State};
 
 use crate::{
-    content::{ContentKind, ContentRequest, ContentResponse, kind_for_url, response},
+    content::{ContentRequest, ContentResponse, ResourceKind, kind_for_url, response},
     error::ApiError,
     reader::client,
     state::AppState,
@@ -14,7 +14,7 @@ pub async fn content(
     let url = request.validate()?;
     if matches!(
         kind_for_url(&url),
-        ContentKind::Image | ContentKind::Unknown
+        ResourceKind::Image | ResourceKind::Unknown
     ) {
         return Err(ApiError::resource_download_required(&url));
     }

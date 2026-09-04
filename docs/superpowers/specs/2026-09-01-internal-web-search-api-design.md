@@ -151,7 +151,7 @@ POST /v1/content
 {
   "requested_url": "https://example.com/article",
   "final_url": "https://example.com/article",
-  "content_kind": "html",
+  "resource_kind": "html",
   "content_type": "text/html",
   "title": "页面标题",
   "markdown": "正文……[相关 PDF](https://example.com/report.pdf)",
@@ -169,7 +169,7 @@ POST /v1/content
 }
 ```
 
-- 成功的文本抽取响应中，`content_kind` 为 `html`、`text` 或 `pdf`。
+- 成功的文本抽取响应中，`resource_kind` 为 `html`、`text` 或 `pdf`。
 - `markdown` 仅包含当前分段；链接保留为绝对 URL 的 Markdown 链接。
 - `links` 仅列出当前分段正文中出现的链接，避免返回整页导航、页脚和站点目录。
 - `kind` 根据目标 URL、链接上下文和可识别的媒体类型标记为 `html`、`pdf`、`image` 或 `unknown`。
@@ -178,13 +178,13 @@ POST /v1/content
 
 `/v1/content` 先按 URL 路径后缀决定是否属于文本抽取对象，不为了补齐类型额外发起资源探测请求：
 
-| URL 形式 | `content_kind` | `/v1/content` 行为 |
+| URL 形式 | `resource_kind` | `/v1/content` 行为 |
 |---|---|---|
 | 无后缀、`.html`、`.htm`、`.xhtml`、`.php`、`.asp`、`.aspx`、`.jsp` | `html` | 调用 Reader 抽取 Markdown。 |
 | `.txt`、`.md`、`.csv`、`.json`、`.xml`、`.yaml`、`.yml` | `text` | 调用 Reader 返回可读文本。 |
 | `.pdf` | `pdf` | 调用 Reader 提取文本。 |
-| 已知图片后缀 | 不返回文本 `content_kind` | 不调用 Reader，返回资源下载指引。 |
-| 未登记的扩展名 | 不返回文本 `content_kind` | 不调用 Reader，返回资源下载指引。 |
+| 已知图片后缀 | 不返回文本 `resource_kind` | 不调用 Reader，返回资源下载指引。 |
+| 未登记的扩展名 | 不返回文本 `resource_kind` | 不调用 Reader，返回资源下载指引。 |
 
 已知图片后缀包括 `.avif`、`.bmp`、`.gif`、`.ico`、`.jpeg`、`.jpg`、`.png`、`.svg`、`.tif`、`.tiff`、`.webp`。
 

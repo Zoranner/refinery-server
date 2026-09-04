@@ -19,7 +19,7 @@ pub struct ContentRequest {
 pub struct ContentResponse {
     pub requested_url: String,
     pub final_url: String,
-    pub content_kind: ContentKind,
+    pub resource_kind: ResourceKind,
     pub content_type: String,
     pub title: Option<String>,
     pub markdown: String,
@@ -32,7 +32,7 @@ pub struct ContentResponse {
 
 #[derive(Debug, Serialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
-pub enum ContentKind {
+pub enum ResourceKind {
     Html,
     Text,
     Pdf,
@@ -63,7 +63,7 @@ pub fn response(
     ContentResponse {
         requested_url: request.url.clone(),
         final_url: final_url.to_string(),
-        content_kind: kind_for_response(&final_url, &content_type),
+        resource_kind: kind_for_response(&final_url, &content_type),
         content_type,
         title: title(&markdown),
         markdown: part.markdown,
@@ -79,40 +79,40 @@ fn default_max_chars() -> usize {
     12000
 }
 
-pub fn kind_for_url(url: &Url) -> ContentKind {
+pub fn kind_for_url(url: &Url) -> ResourceKind {
     let path = url.path().to_ascii_lowercase();
 
     if path.ends_with(".pdf") {
-        ContentKind::Pdf
+        ResourceKind::Pdf
     } else if [".txt", ".md", ".csv", ".json", ".xml", ".yaml", ".yml"]
         .iter()
         .any(|extension| path.ends_with(extension))
     {
-        ContentKind::Text
+        ResourceKind::Text
     } else if [
         ".avif", ".bmp", ".gif", ".ico", ".jpeg", ".jpg", ".png", ".svg", ".tif", ".tiff", ".webp",
     ]
     .iter()
     .any(|extension| path.ends_with(extension))
     {
-        ContentKind::Image
+        ResourceKind::Image
     } else if [".asp", ".aspx", ".htm", ".html", ".jsp", ".php", ".xhtml"]
         .iter()
         .any(|extension| path.ends_with(extension))
     {
-        ContentKind::Html
+        ResourceKind::Html
     } else if path
         .rsplit('/')
         .next()
         .is_some_and(|name| name.contains('.'))
     {
-        ContentKind::Unknown
+        ResourceKind::Unknown
     } else {
-        ContentKind::Html
+        ResourceKind::Html
     }
 }
 
-pub fn kind_for_response(url: &Url, content_type: &str) -> ContentKind {
+pub fn kind_for_response(url: &Url, content_type: &str) -> ResourceKind {
     let mime = content_type
         .split(';')
         .next()
@@ -121,13 +121,13 @@ pub fn kind_for_response(url: &Url, content_type: &str) -> ContentKind {
         .to_ascii_lowercase();
 
     match mime.as_str() {
-        "application/pdf" => ContentKind::Pdf,
-        value if value.starts_with("image/") => ContentKind::Image,
-        "text/html" => ContentKind::Html,
+        "application/pdf" => ResourceKind::Pdf,
+        value if value.starts_with("image/") => ResourceKind::Image,
+        "text/html" => ResourceKind::Html,
         "application/json" | "application/xml" | "application/yaml" | "text/csv" | "text/xml"
-        | "text/yaml" => ContentKind::Text,
+        | "text/yaml" => ResourceKind::Text,
         "text/plain" => match kind_for_url(url) {
-            ContentKind::Text | ContentKind::Unknown => ContentKind::Text,
+            ResourceKind::Text | ResourceKind::Unknown => ResourceKind::Text,
             kind => kind,
         },
         _ => kind_for_url(url),

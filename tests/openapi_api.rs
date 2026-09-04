@@ -27,6 +27,9 @@ async fn serves_machine_readable_openapi_contract() {
     assert_eq!(document["openapi"], "3.0.3");
     assert!(document["paths"]["/v1/search"].is_object());
     assert!(document["paths"]["/v1/content"].is_object());
+    let content_schema = &document["components"]["schemas"]["ContentResponse"];
+    assert!(content_schema["properties"]["resource_kind"].is_object());
+    assert!(content_schema["properties"]["content_kind"].is_null());
     assert_eq!(
         document["components"]["schemas"]["Error"]["required"][0],
         "code"

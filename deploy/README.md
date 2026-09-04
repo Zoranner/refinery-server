@@ -20,7 +20,7 @@ docker network create refinery
 
 镜像版本和宿主机发布端口直接写在 `docker-compose.yml` 中；Refinery 容器环境变量从同目录 `.env` 读取：
 
-- `ghcr.io/zoranner/refinery:0.1.1`：本次发布的 Refinery 镜像版本；升级时修改 Compose 中的 tag。
+- `ghcr.io/zoranner/refinery:0.1.2`：本次发布的 Refinery 镜像版本；升级时修改 Compose 中的 tag。
 - `searxng/searxng:latest`：SearXNG 镜像；需要可复现部署时应改为已验证的固定 tag 或 digest。
 - `ghcr.io/jina-ai/reader:oss`：当前 Compose 使用的 Jina Reader 镜像；正式部署前可替换为已经完成安全验收的不可变 digest。
 - `8080:8080`：向内网发布的 Refinery 端口，端口变更时直接修改 Compose。

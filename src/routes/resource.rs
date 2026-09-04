@@ -18,7 +18,10 @@ pub async fn resource(
     Query(query): Query<ResourceQuery>,
 ) -> Result<Response, ApiError> {
     let url = validate_public_url(&query.url)?;
-    let resource = state.resource_fetcher.get(&url).await?;
+    let resource = state
+        .resource_fetcher
+        .get_with_timeout(&url, state.config.resource_timeout)
+        .await?;
 
     Response::builder()
         .status(StatusCode::OK)

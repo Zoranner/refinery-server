@@ -17,10 +17,11 @@ pub struct AppState {
 
 impl AppState {
     pub fn new(config: Config) -> Self {
+        let resource_timeout = config.resource_timeout;
         Self {
             config,
             http_client: http::new_client(),
-            resource_fetcher: Arc::new(HttpResourceFetcher::new()),
+            resource_fetcher: Arc::new(HttpResourceFetcher::with_timeout(resource_timeout)),
             sitemap_fetcher: Arc::new(HttpSitemapFetcher::new()),
         }
     }
@@ -30,10 +31,11 @@ impl AppState {
     }
 
     pub fn with_sitemap_fetcher(config: Config, sitemap_fetcher: Arc<dyn SitemapFetcher>) -> Self {
+        let resource_timeout = config.resource_timeout;
         Self {
             config,
             http_client: http::new_client(),
-            resource_fetcher: Arc::new(HttpResourceFetcher::new()),
+            resource_fetcher: Arc::new(HttpResourceFetcher::with_timeout(resource_timeout)),
             sitemap_fetcher,
         }
     }

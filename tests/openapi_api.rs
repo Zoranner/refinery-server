@@ -9,6 +9,7 @@ async fn serves_machine_readable_openapi_contract() {
         port: 0,
         searxng_base_url: "http://searxng.test".to_owned(),
         reader_base_url: "http://reader.test".to_owned(),
+        resource_timeout: std::time::Duration::from_secs(20),
         reader_timeout: std::time::Duration::from_secs(60),
     });
 

@@ -8,6 +8,7 @@ pub struct Config {
     pub port: u16,
     pub searxng_base_url: String,
     pub reader_base_url: String,
+    pub resource_timeout: Duration,
     pub reader_timeout: Duration,
 }
 
@@ -26,6 +27,7 @@ impl Config {
                 .unwrap_or_else(|_| "http://searxng:8888".to_owned()),
             reader_base_url: env::var("READER_BASE_URL")
                 .unwrap_or_else(|_| "http://reader:8081".to_owned()),
+            resource_timeout: read_duration_env("RESOURCE_REQUEST_TIMEOUT_SECONDS", "20")?,
             reader_timeout: read_duration_env("READER_REQUEST_TIMEOUT_SECONDS", "60")?,
         })
     }
@@ -36,6 +38,7 @@ impl Config {
             port: 0,
             searxng_base_url: "http://searxng.test".to_owned(),
             reader_base_url: "http://reader.test".to_owned(),
+            resource_timeout: Duration::from_secs(20),
             reader_timeout: Duration::from_secs(60),
         }
     }
@@ -72,6 +75,7 @@ mod tests {
             std::env::set_var("HTTP_LISTEN_PORT", "9090");
             std::env::set_var("SEARXNG_BASE_URL", "http://search.test:8888");
             std::env::set_var("READER_BASE_URL", "http://reader.test:8081");
+            std::env::set_var("RESOURCE_REQUEST_TIMEOUT_SECONDS", "7");
             std::env::set_var("READER_REQUEST_TIMEOUT_SECONDS", "60");
         }
 
@@ -81,6 +85,7 @@ mod tests {
         assert_eq!(config.port, 9090);
         assert_eq!(config.searxng_base_url, "http://search.test:8888");
         assert_eq!(config.reader_base_url, "http://reader.test:8081");
+        assert_eq!(config.resource_timeout, std::time::Duration::from_secs(7));
         assert_eq!(config.reader_timeout, std::time::Duration::from_secs(60));
 
         unsafe {
@@ -88,6 +93,7 @@ mod tests {
             std::env::remove_var("HTTP_LISTEN_PORT");
             std::env::remove_var("SEARXNG_BASE_URL");
             std::env::remove_var("READER_BASE_URL");
+            std::env::remove_var("RESOURCE_REQUEST_TIMEOUT_SECONDS");
             std::env::remove_var("READER_REQUEST_TIMEOUT_SECONDS");
         }
     }

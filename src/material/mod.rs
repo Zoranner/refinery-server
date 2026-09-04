@@ -1,3 +1,4 @@
+pub(crate) mod download;
 mod extraction;
 mod model;
 

@@ -66,6 +66,7 @@ fn app(searxng_base_url: &str) -> Router {
         port: 0,
         searxng_base_url: searxng_base_url.to_owned(),
         reader_base_url: "http://reader.test".to_owned(),
+        resource_timeout: std::time::Duration::from_secs(20),
         reader_timeout: std::time::Duration::from_secs(60),
     }))
 }

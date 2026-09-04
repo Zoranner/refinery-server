@@ -1,6 +1,6 @@
 services:
   refinery:
-    image: pkg-dg.rd.kim/zoranner/refinery:0.1.0
+    image: ghcr.io/zoranner/refinery:0.1.1
     container_name: refinery
     restart: always
     depends_on:
@@ -11,11 +11,11 @@ services:
     ports:
       - 18090:8080
   reader:
-    image: pkg-dg.rd.kim/jina-ai/reader:oss
+    image: ghcr.io/jina-ai/reader:oss
     container_name: refinery-reader
     restart: always
   searxng:
-    image: pkg-dg.rd.kim/searxng/searxng:latest
+    image: searxng/searxng:latest
     container_name: refinery-searxng
     restart: always
     environment:

@@ -48,6 +48,14 @@ async fn search_maps_searxng_json_response() {
         json!({
             "query": "Rust HTML 正文抽取",
             "page": 2,
+            "pagination": {
+                "requested_page": 2,
+                "has_more": null
+            },
+            "diagnostics": {
+                "source_status": "ok",
+                "warnings": []
+            },
             "results": [
                 {
                     "title": "DOM Smoothie",
@@ -57,6 +65,41 @@ async fn search_maps_searxng_json_response() {
                 }
             ]
         })
+    );
+}
+
+#[tokio::test]
+async fn empty_second_page_does_not_claim_end_of_results() {
+    let upstream = start_searxng().await;
+    let response = post_json(
+        app(&format!("http://{}", upstream.address)),
+        json!({
+            "query": "web scraping",
+            "page": 2,
+            "limit": 3
+        }),
+    )
+    .await;
+
+    assert_eq!(response.status(), StatusCode::OK);
+    let body = json_body(response).await;
+    assert_eq!(body["results"].as_array().unwrap().len(), 0);
+    assert_eq!(body["pagination"]["has_more"], Value::Null);
+    assert_eq!(body["diagnostics"]["source_status"], "ok");
+}
+
+#[tokio::test]
+async fn search_rejects_invalid_limit() {
+    let response = post_json(
+        app("http://searxng.test"),
+        json!({ "query": "rust", "limit": 21 }),
+    )
+    .await;
+
+    assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+    assert_eq!(
+        json_body(response).await["error"]["code"],
+        "invalid_request"
     );
 }
 
@@ -104,10 +147,19 @@ async fn start_searxng() -> TestServer {
 }
 
 async fn searxng_response(Query(query): Query<HashMap<String, String>>) -> impl IntoResponse {
-    assert_eq!(query.get("q"), Some(&"Rust HTML 正文抽取".to_owned()));
+    assert!(matches!(
+        query.get("q").map(String::as_str),
+        Some("Rust HTML 正文抽取" | "web scraping")
+    ));
     assert_eq!(query.get("format"), Some(&"json".to_owned()));
     assert_eq!(query.get("pageno"), Some(&"2".to_owned()));
-    assert_eq!(query.get("language"), Some(&"zh-CN".to_owned()));
+    if query.get("q").map(String::as_str) == Some("Rust HTML 正文抽取") {
+        assert_eq!(query.get("language"), Some(&"zh-CN".to_owned()));
+    }
+
+    if query.get("q").map(String::as_str) == Some("web scraping") {
+        return Json(json!({ "results": [] }));
+    }
 
     Json(json!({
         "results": [

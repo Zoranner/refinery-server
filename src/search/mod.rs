@@ -19,6 +19,20 @@ pub struct SearchResponse {
     pub query: String,
     pub page: u32,
     pub results: Vec<SearchResult>,
+    pub pagination: SearchPagination,
+    pub diagnostics: SearchDiagnostics,
+}
+
+#[derive(Debug, Serialize)]
+pub struct SearchPagination {
+    pub requested_page: u32,
+    pub has_more: Option<bool>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct SearchDiagnostics {
+    pub source_status: String,
+    pub warnings: Vec<String>,
 }
 
 #[derive(Debug, Serialize)]

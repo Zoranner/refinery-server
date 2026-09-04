@@ -48,6 +48,14 @@ pub async fn search(
                 published_at: result.published_date,
             })
             .collect(),
+        pagination: crate::search::SearchPagination {
+            requested_page: request.page,
+            has_more: None,
+        },
+        diagnostics: crate::search::SearchDiagnostics {
+            source_status: "ok".to_owned(),
+            warnings: Vec::new(),
+        },
     })
 }
 

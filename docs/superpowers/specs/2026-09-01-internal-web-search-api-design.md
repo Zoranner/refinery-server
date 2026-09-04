@@ -363,7 +363,7 @@ PDF 支持必须以固定 PDF 样本验证 Reader 当前固定镜像的实际输
 |---|---|---|
 | 400 | `invalid_request` | 请求字段缺失、格式错误或 URL 不是 HTTP/HTTPS。 |
 | 403 | `blocked_target` | 目标或重定向目标不符合公网地址策略。 |
-| 413 | `response_too_large` | 响应体超过配置上限。 |
+| 413 | `response_too_large` | `/v1/content` 或 `/v1/resource` 的响应体超过配置上限；`/v1/sitemap` 当前吞并抓取错误或转为 warning，不对外发出 413。 |
 | 502 | `search_upstream_failed` | SearXNG 不可用或返回无效搜索结果。 |
 | 502 | `fetch_failed` | 外部站点连接、TLS 或响应协议失败。 |
 | 504 | `fetch_timeout` | 外部站点在时限内未完成响应。 |

@@ -123,7 +123,7 @@ GET /v1/resource?url=https%3A%2F%2Fexample.com%2Fdiagram.png
 }
 ```
 
-当前路由使用 HTTP 400（请求无效）、403（目标被阻止）、413（资源响应过大）、502（上游失败）和 504（上游超时）。HTTP 415 仅为仍需支持的非内容业务保留；`/v1/content` 的图片和未知资源使用上述 HTTP 200 的 `download_only` 响应。
+当前路由使用 HTTP 400（请求无效）、403（目标被阻止）、502（上游失败）和 504（上游超时）；`/v1/content` 与 `/v1/resource` 另可返回 413（资源响应过大）。`/v1/sitemap` 当前会将抓取器和回退读取错误转为继续处理或 warning，不对外发出 413。HTTP 415 仅为仍需支持的非内容业务保留；`/v1/content` 的图片和未知资源使用上述 HTTP 200 的 `download_only` 响应。
 
 ## 本地验证
 

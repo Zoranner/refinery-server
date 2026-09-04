@@ -2,6 +2,7 @@ pub mod config;
 pub mod content;
 pub mod error;
 pub mod http;
+pub mod material;
 pub mod reader;
 pub mod resource;
 pub mod routes;

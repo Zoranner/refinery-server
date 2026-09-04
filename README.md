@@ -6,6 +6,7 @@ Refinery 为没有互联网访问权限的员工电脑提供受控的外网资�
 - `POST /v1/content`：通过同一 Docker 网络内的 Jina Reader 读取单个公网网页、可提取的 PDF 或已知纯文本资源，并返回 Markdown 与当前分段链接。
 - `POST /v1/sitemap`：读取 `robots.txt`、sitemap 和 sitemap index；当站点没有可用 sitemap 时，只读取请求页一次并返回其中的同源链接。
 - `GET /v1/resource`：受控下载任意公网资源原文件。
+- `GET /openapi.json`：返回供智能体和工具读取的 OpenAPI 3.0 契约。
 
 Refinery 是唯一面向内网调用方的服务。SearXNG 和 Jina Reader 不发布宿主机端口。
 
@@ -49,6 +50,8 @@ GET /v1/resource?url=https%3A%2F%2Fexample.com%2Fdiagram.png
 `/v1/content` 仅接受绝对 `http` 或 `https` URL；字面量回环、私有、链路本地、保留地址和其他非公网地址会被拒绝。无后缀和已知网页后缀标记为 `html`，`.txt`、`.md`、`.csv`、`.json`、`.xml`、`.yaml`、`.yml` 标记为 `text`，`.pdf` 标记为 `pdf`，以上资源均调用 Reader。已知图片后缀和未登记扩展名不调用 Reader，而是返回 `415 resource_download_required` 及对应的 `/v1/resource` 地址。
 
 `/v1/resource` 可下载任意公网资源，不按媒体类型拒绝，响应体最大 20 MiB；返回原始 `Content-Type`，并设置 `Content-Disposition: attachment` 和 `X-Content-Type-Options: nosniff`。`/v1/sitemap` 不执行深度爬取、浏览器渲染或缓存，不读取已发现 URL 的正文。
+
+`/v1/content` 的 `content_kind` 表示调用方应采用的内容处理方式，优先依据明确的响应媒体类型并结合最终 URL 后缀判断；`content_type` 保留上游响应的媒体类型。Reader 返回的 Markdown 响应不应直接据此推断原网页类型。
 
 ## 本地验证
 

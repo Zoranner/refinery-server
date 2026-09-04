@@ -30,7 +30,7 @@ pub struct ContentResponse {
     pub warnings: Vec<String>,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
 pub enum ContentKind {
     Html,
@@ -63,7 +63,7 @@ pub fn response(
     ContentResponse {
         requested_url: request.url.clone(),
         final_url: final_url.to_string(),
-        content_kind: kind_for_url(&final_url),
+        content_kind: kind_for_response(&final_url, &content_type),
         content_type,
         title: title(&markdown),
         markdown: part.markdown,
@@ -109,6 +109,28 @@ pub fn kind_for_url(url: &Url) -> ContentKind {
         ContentKind::Unknown
     } else {
         ContentKind::Html
+    }
+}
+
+pub fn kind_for_response(url: &Url, content_type: &str) -> ContentKind {
+    let mime = content_type
+        .split(';')
+        .next()
+        .unwrap_or_default()
+        .trim()
+        .to_ascii_lowercase();
+
+    match mime.as_str() {
+        "application/pdf" => ContentKind::Pdf,
+        value if value.starts_with("image/") => ContentKind::Image,
+        "text/html" => ContentKind::Html,
+        "application/json" | "application/xml" | "application/yaml" | "text/csv" | "text/xml"
+        | "text/yaml" => ContentKind::Text,
+        "text/plain" => match kind_for_url(url) {
+            ContentKind::Text | ContentKind::Unknown => ContentKind::Text,
+            kind => kind,
+        },
+        _ => kind_for_url(url),
     }
 }
 

@@ -101,6 +101,24 @@ fn content_marks_known_plain_text_extensions_as_text() {
     );
 }
 
+#[test]
+fn content_uses_unambiguous_response_media_types() {
+    let url = url::Url::parse("https://example.test/download").unwrap();
+
+    assert_eq!(
+        refinery::content::kind_for_response(&url, "application/pdf"),
+        refinery::content::ContentKind::Pdf
+    );
+    assert_eq!(
+        refinery::content::kind_for_response(&url, "image/png"),
+        refinery::content::ContentKind::Image
+    );
+    assert_eq!(
+        refinery::content::kind_for_response(&url, "application/json"),
+        refinery::content::ContentKind::Text
+    );
+}
+
 #[tokio::test]
 async fn content_directs_images_and_unknown_extensions_to_resource_download() {
     for url in [

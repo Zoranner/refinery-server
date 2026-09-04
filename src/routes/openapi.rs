@@ -116,7 +116,6 @@ pub async fn document() -> Json<Value> {
                         },
                         "400": { "$ref": "#/components/responses/InvalidRequest" },
                         "403": { "$ref": "#/components/responses/BlockedTarget" },
-                        "413": { "$ref": "#/components/responses/ResponseTooLarge" },
                         "502": { "$ref": "#/components/responses/FetchFailed" },
                         "504": { "$ref": "#/components/responses/FetchTimeout" }
                     }

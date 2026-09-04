@@ -85,8 +85,5 @@ async fn openapi_describes_material_response_and_search_pagination() {
         document["paths"]["/v1/content"]["post"]["responses"]["413"]["$ref"],
         "#/components/responses/ResponseTooLarge"
     );
-    assert_eq!(
-        document["paths"]["/v1/sitemap"]["post"]["responses"]["413"]["$ref"],
-        "#/components/responses/ResponseTooLarge"
-    );
+    assert!(document["paths"]["/v1/sitemap"]["post"]["responses"]["413"].is_null());
 }

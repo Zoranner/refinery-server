@@ -1,28 +1,32 @@
 services:
   refinery:
-    image: ghcr.io/zoranner/refinery:0.1.0
+    image: pkg-dg.rd.kim/zoranner/refinery:0.1.0
     container_name: refinery
     restart: always
     depends_on:
       - reader
       - searxng
     ports:
-      - 8080:8080
+      - 18090:8080
     environment:
       - REFINERY_BIND=0.0.0.0
       - REFINERY_PORT=8080
       - SEARXNG_BASE_URL=http://searxng:8888
       - READER_BASE_URL=http://reader:8081
   reader:
-    image: ghcr.io/jina-ai/reader:oss
+    image: pkg-dg.rd.kim/jina-ai/reader:oss
     container_name: refinery-reader
     restart: always
   searxng:
-    image: searxng/searxng:latest
+    image: pkg-dg.rd.kim/searxng/searxng:latest
+    container_name: refinery-searxng
     restart: always
     environment:
+      - SEARXNG_BIND_ADDRESS=0.0.0.0
+      - SEARXNG_PORT=8888
       - SEARXNG_SETTINGS_FILE=/etc/searxng/settings.yml
     volumes:
+      - ./app/limiter.toml:/etc/searxng/limiter.toml:ro
       - ./app/settings.yml:/etc/searxng/settings.yml:ro
 networks:
   default:

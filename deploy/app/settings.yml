@@ -41,7 +41,7 @@ search:
   autocomplete_min: 2
   # backend for the favicon near URL in search results.
   # Available resolvers: "allesedv", "duckduckgo", "google", "yandex" - leave blank to turn it off by default.
-  favicon_resolver: 'duckduckgo'
+  favicon_resolver: ''
   # Default search language - leave blank to detect from browser information or
   # use codes from 'languages.py'
   default_lang: 'auto'
@@ -206,7 +206,7 @@ outgoing:
   # 代理配置：通过局域网代理访问 Google/Wikipedia 等被屏蔽的搜索引擎
   proxies:
     all://:
-      - http://192.168.2.16:7897
+      - http://clash:7897
   #
   using_tor_proxy: false
   #
@@ -470,11 +470,6 @@ engines:
     shortcut: arx
     categories: [science]
     timeout: 4.0
-
-  - name: ask
-    engine: ask
-    shortcut: ask
-    disabled: true
 
   # tmp suspended:  dh key too small
   # - name: base
@@ -1530,11 +1525,6 @@ engines:
       # image proxy of https://pixiv.perennialte.ch
       # - https://pximg.perennialte.ch
 
-  - name: podcastindex
-    disabled: true
-    engine: podcastindex
-    shortcut: podcast
-
   # Required dependency: psychopg2
   #  - name: postgresql
   #    engine: postgresql
@@ -1544,41 +1534,6 @@ engines:
   #    limit: 10
   #    query_str: 'SELECT * from my_table WHERE my_column = %(query)s'
   #    shortcut : psql
-
-  - name: presearch
-    engine: presearch
-    search_type: search
-    categories: [general, web]
-    shortcut: ps
-    timeout: 4.0
-    disabled: true
-
-  - name: presearch images
-    engine: presearch
-    network: presearch
-    search_type: images
-    categories: [images, web]
-    timeout: 4.0
-    shortcut: psimg
-    disabled: true
-
-  - name: presearch videos
-    engine: presearch
-    network: presearch
-    search_type: videos
-    categories: [general, web]
-    timeout: 4.0
-    shortcut: psvid
-    disabled: true
-
-  - name: presearch news
-    engine: presearch
-    network: presearch
-    search_type: news
-    categories: [news, web]
-    timeout: 4.0
-    shortcut: psnews
-    disabled: true
 
   - name: pub.dev
     engine: xpath
@@ -1672,12 +1627,6 @@ engines:
     disabled: true
     engine: radio_browser
     shortcut: rb
-
-  - name: reddit
-    engine: reddit
-    shortcut: re
-    page_size: 25
-    disabled: true
 
   - name: right dao
     engine: xpath
@@ -2270,7 +2219,7 @@ engines:
       use_official_api: false
       require_api_key: false
       results: HTML
-      language: ko
+    language: ko
 
   - name: rubygems
     shortcut: rbg
@@ -2379,7 +2328,7 @@ engines:
       use_official_api: false
       require_api_key: false
       results: HTML
-      language: de
+    language: de
 
   # - name: seekr news
   #   engine: seekr
@@ -2410,12 +2359,6 @@ engines:
   #   shortcut: str
   #   disabled: true
   #   # Removed: engine file stract.py does not exist in current version
-
-  - name: svgrepo
-    engine: svgrepo
-    shortcut: svg
-    timeout: 10.0
-    disabled: true
 
   - name: tootfinder
     disabled: true
@@ -2451,7 +2394,7 @@ engines:
       use_official_api: false
       require_api_key: false
       results: HTML
-      language: fr
+    language: fr
 
   - name: wttr.in
     disabled: true
@@ -2549,7 +2492,7 @@ engines:
       use_official_api: false
       require_api_key: false
       results: HTML
-      language: ja
+    language: ja
 
   - name: bt4g
     disabled: true

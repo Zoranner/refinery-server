@@ -2,7 +2,7 @@
 
 ## 验收日期
 
-- 验收日期：2026 年 9 月 5 日
+- 验收日期：2026-09-05
 - 验收范围：当前 checkout 的 sitemap 状态模型、OpenAPI 契约、架构说明和本地 Rust 门禁。
 - 未修改：sitemap 运行逻辑，以及 2026 年 9 月 4 日历史验收记录。
 
@@ -13,7 +13,7 @@
 | 命令 | 结果 |
 | --- | --- |
 | `cargo fmt --all` | 通过 |
-| `cargo test --all-targets --all-features` | 通过，42 项测试通过 |
+| `cargo test --all-targets --all-features` | 通过，44 项测试通过 |
 | `cargo clippy --all-targets --all-features -- -D warnings` | 通过，无警告 |
 | `cargo build --release --locked` | 通过 |
 | `git diff --check` | 通过 |
@@ -27,7 +27,7 @@
 | discovered | robots.txt 声明 sitemap index，index 指向同源文档，返回同源 URL；`status=discovered`，来源为 `robots_txt=discovered`、`sitemap=discovered`。 |
 | partial | robots.txt 获取失败但 sitemap.xml 返回同源 URL；仍返回 HTTP 200，`status=partial`，并记录 `source_failed` warning。 |
 | empty | 所有来源均未发现 URL 时，响应保留 `status=empty`、各来源状态和空 `urls`；空结果不被解释为站点绝对无链接。 |
-| failed | sitemap 来源失败且没有可用发现结果时，响应仍为 HTTP 200，`status=failed`，并通过来源状态与 `source_failed` warning 暴露失败。 |
+| failed | sitemap 来源失败且页面回退也失败时，响应仍为 HTTP 200，`status=failed`，并通过来源状态、`source_failed` 和 `fallback_failed` warning 暴露失败。 |
 | timed_out | robots、sitemap 和页面回退均超时时，响应仍为 HTTP 200，`status=timed_out`，三个来源均为 `timed_out`，warning code 为 `source_timeout`。 |
 | page-link fallback | robots 与 sitemap 未发现 URL 时，只调用请求页一次，保留同源 Markdown 链接并过滤外部链接；来源为 `page_links=discovered`。 |
 
@@ -37,6 +37,7 @@
 
 - `SitemapStatus`、`SitemapSourceStatus`、`SitemapSources`、`SitemapWarning` 和 `SitemapResponse` 均有 schema。
 - `SitemapResponse` 必须包含 `status`、`sources`、`warnings`，并保留请求地址、站点地址、URL 列表和截断事实。
+- `SitemapWarning.code` 枚举包含运行时的 `source_failed`、`source_timeout` 和 `fallback_failed`。
 - `POST /v1/sitemap` 的 HTTP 200 JSON schema `$ref` 为 `#/components/schemas/SitemapResponse`。
 - `/v1/sitemap` 没有 413 或 504 response entry；内容、资源、搜索及统一 JSON 错误 schema 保持存在。
 - OpenAPI 集成测试先按 TDD 观察到缺少 `SitemapStatus` schema 的失败，补充契约后通过。

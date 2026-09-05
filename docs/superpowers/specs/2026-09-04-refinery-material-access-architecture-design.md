@@ -239,7 +239,7 @@ Reader 返回的 `text/plain` 或 Markdown 不能覆盖这个事实。
 }
 ```
 
-`status` 取 `discovered`、`partial`、`empty`、`failed` 或 `timed_out`；`sources` 分别记录 `robots_txt`、`sitemap` 和页面同源链接回退的 `not_attempted`、`discovered`、`empty`、`failed` 或 `timed_out`。结构化 warning 当前使用 `source_failed` 和 `source_timeout`，并携带发生来源，避免把部分发现结果与来源失败压缩成一个不可解释的错误。
+`status` 取 `discovered`、`partial`、`empty`、`failed` 或 `timed_out`；`sources` 分别记录 `robots_txt`、`sitemap` 和页面同源链接回退的 `not_attempted`、`discovered`、`empty`、`failed` 或 `timed_out`。结构化 warning 当前使用 `source_failed`、`source_timeout` 和页面回退专用的 `fallback_failed`，并携带发生来源，避免把部分发现结果与来源失败压缩成一个不可解释的错误。
 
 站点发现是尽力而为接口：合法请求统一返回 HTTP 200，即使某个或全部来源失败、超时或最终没有 URL。来源失败仍会记录在 `status`、`sources` 和 `warnings` 中，并按顺序继续尝试 sitemap 或页面链接回退；当前实现不会为 `/v1/sitemap` 发出 HTTP 413 或 HTTP 504。请求参数无效、目标地址被策略阻止等校验错误仍使用统一 JSON 错误响应。
 

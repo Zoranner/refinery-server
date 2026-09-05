@@ -415,7 +415,7 @@ pub async fn document() -> Json<Value> {
                         },
                         "code": {
                             "type": "string",
-                            "enum": ["source_failed", "source_timeout"]
+                            "enum": ["source_failed", "source_timeout", "fallback_failed"]
                         }
                     }
                 },

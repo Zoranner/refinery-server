@@ -147,6 +147,80 @@ async fn sitemap_marks_partial_when_sitemap_urls_exist_but_one_source_fails() {
 }
 
 #[tokio::test]
+async fn sitemap_reports_empty_when_all_sources_are_empty() {
+    let fetcher = Arc::new(FixtureFetcher::new(HashMap::from([
+        (
+            "https://docs.example.test/robots.txt".to_owned(),
+            "User-agent: *\n".to_owned(),
+        ),
+        (
+            "https://docs.example.test/sitemap.xml".to_owned(),
+            "<urlset></urlset>".to_owned(),
+        ),
+    ])));
+    let reader_base_url = start_empty_reader().await;
+    let response = post_sitemap(
+        app_with_reader(fetcher, &reader_base_url),
+        json!({
+            "url": "https://docs.example.test/guide/",
+            "limit": 100
+        }),
+    )
+    .await;
+
+    assert_eq!(response.status(), StatusCode::OK);
+    let body = json_body(response).await;
+    assert_eq!(body["status"], "empty");
+    assert_eq!(
+        body["sources"],
+        json!({
+            "robots_txt": "empty",
+            "sitemap": "empty",
+            "page_links": "empty"
+        })
+    );
+    assert_eq!(body["urls"], json!([]));
+    assert_eq!(body["warnings"], json!([]));
+}
+
+#[tokio::test]
+async fn sitemap_reports_failed_when_all_sources_fail() {
+    let reader_base_url = start_failing_reader().await;
+    let response = post_sitemap(
+        app_with_reader(
+            Arc::new(FixtureFetcher::new(HashMap::new())),
+            &reader_base_url,
+        ),
+        json!({
+            "url": "https://docs.example.test/guide/",
+            "limit": 100
+        }),
+    )
+    .await;
+
+    assert_eq!(response.status(), StatusCode::OK);
+    let body = json_body(response).await;
+    assert_eq!(body["status"], "failed");
+    assert_eq!(
+        body["sources"],
+        json!({
+            "robots_txt": "failed",
+            "sitemap": "failed",
+            "page_links": "failed"
+        })
+    );
+    assert_eq!(body["urls"], json!([]));
+    assert_eq!(
+        body["warnings"],
+        json!([
+            { "source": "robots_txt", "code": "source_failed" },
+            { "source": "sitemap", "code": "source_failed" },
+            { "source": "page_links", "code": "fallback_failed" }
+        ])
+    );
+}
+
+#[tokio::test]
 async fn sitemap_falls_back_to_same_origin_links_from_requested_page() {
     let reader_base_url = start_reader().await;
     let response = post_sitemap(
@@ -233,6 +307,30 @@ async fn start_slow_reader() -> String {
     format!("http://{address}")
 }
 
+async fn start_empty_reader() -> String {
+    let router = Router::new().route("/", post(empty_reader_response));
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let address = listener.local_addr().unwrap();
+
+    tokio::spawn(async move {
+        axum::serve(listener, router).await.unwrap();
+    });
+
+    format!("http://{address}")
+}
+
+async fn start_failing_reader() -> String {
+    let router = Router::new().route("/", post(failing_reader_response));
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let address = listener.local_addr().unwrap();
+
+    tokio::spawn(async move {
+        axum::serve(listener, router).await.unwrap();
+    });
+
+    format!("http://{address}")
+}
+
 async fn slow_reader_response(
     ExtractJson(_body): ExtractJson<Value>,
 ) -> ([(axum::http::HeaderName, &'static str); 1], String) {
@@ -252,6 +350,19 @@ async fn reader_response(
         [(axum::http::header::CONTENT_TYPE, "text/markdown")],
         "[start](/start)\n[external](https://other.example.test/ignored)".to_owned(),
     )
+}
+
+async fn empty_reader_response(
+    ExtractJson(_body): ExtractJson<Value>,
+) -> ([(axum::http::HeaderName, &'static str); 1], String) {
+    (
+        [(axum::http::header::CONTENT_TYPE, "text/markdown")],
+        String::new(),
+    )
+}
+
+async fn failing_reader_response(ExtractJson(_body): ExtractJson<Value>) -> StatusCode {
+    StatusCode::INTERNAL_SERVER_ERROR
 }
 
 async fn post_sitemap(app: Router, body: Value) -> axum::response::Response {

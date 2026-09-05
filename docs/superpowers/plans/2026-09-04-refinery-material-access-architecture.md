@@ -103,6 +103,9 @@ pub struct ExtractionResult {
     pub format: String,
     pub reason: Option<String>,
     pub reader_content_type: Option<String>,
+    pub title: Option<String>,
+    pub markdown: String,
+    pub links: Vec<crate::content::links::Link>,
 }
 
 pub struct DownloadCapability {

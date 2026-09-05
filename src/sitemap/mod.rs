@@ -1,4 +1,5 @@
 pub mod client;
+pub mod outcome;
 pub mod parser;
 
 use std::{
@@ -13,6 +14,7 @@ use url::Url;
 use crate::{content::validate_public_url, error::ApiError};
 
 pub use client::HttpSitemapFetcher;
+pub use outcome::{SitemapSourceStatus, SitemapSources, SitemapStatus, SitemapWarning};
 
 const MAX_SITEMAP_DOCUMENTS: usize = 20;
 
@@ -32,9 +34,11 @@ pub struct SitemapRequest {
 pub struct SitemapResponse {
     pub requested_url: String,
     pub site_url: String,
+    pub status: SitemapStatus,
+    pub sources: SitemapSources,
     pub urls: Vec<SitemapUrl>,
     pub truncated: bool,
-    pub warnings: Vec<String>,
+    pub warnings: Vec<SitemapWarning>,
 }
 
 #[derive(Debug, Serialize)]
@@ -62,8 +66,20 @@ pub async fn discover(
     let robots_url = site_url
         .join("robots.txt")
         .map_err(|_| ApiError::fetch_failed())?;
-    let robots = fetcher.get(&robots_url).await.unwrap_or_default();
-    let mut documents: VecDeque<Url> = parser::robots_sitemaps(&robots)
+    let mut warnings = Vec::new();
+    let mut robots_source = SourceTracker::default();
+    let robots_sitemaps = match fetcher.get(&robots_url).await {
+        Ok(robots) => {
+            let sitemaps = parser::robots_sitemaps(&robots);
+            robots_source.success(!sitemaps.is_empty());
+            sitemaps
+        }
+        Err(error) => {
+            robots_source.failure(&error, "robots_txt", &mut warnings);
+            Vec::new()
+        }
+    };
+    let mut documents: VecDeque<Url> = robots_sitemaps
         .into_iter()
         .filter(|url| same_origin(&site_url, url))
         .collect();
@@ -80,6 +96,7 @@ pub async fn discover(
     let mut urls = Vec::new();
     let mut found = HashSet::new();
     let mut truncated = false;
+    let mut sitemap_source = SourceTracker::default();
 
     while let Some(document_url) = documents.pop_front() {
         if visited.len() >= MAX_SITEMAP_DOCUMENTS {
@@ -91,22 +108,29 @@ pub async fn discover(
             continue;
         }
 
+        sitemap_source.attempted = true;
         let document = match fetcher.get(&document_url).await {
             Ok(document) => document,
-            Err(_) => continue,
+            Err(error) => {
+                sitemap_source.failure(&error, "sitemap", &mut warnings);
+                continue;
+            }
         };
 
-        match parser::parse(&document)? {
-            parser::Document::Index(children) => {
+        match parser::parse(&document) {
+            Ok(parser::Document::Index(children)) => {
+                sitemap_source.success(false);
                 for child in children {
                     if same_origin(&site_url, &child) {
                         documents.push_back(child);
                     }
                 }
             }
-            parser::Document::UrlSet(candidates) => {
+            Ok(parser::Document::UrlSet(candidates)) => {
+                let mut discovered = false;
                 for candidate in candidates {
                     if same_origin(&site_url, &candidate) && found.insert(candidate.clone()) {
+                        discovered = true;
                         urls.push(SitemapUrl {
                             url: candidate.to_string(),
                             source: "sitemap",
@@ -118,7 +142,9 @@ pub async fn discover(
                         break;
                     }
                 }
+                sitemap_source.success(discovered);
             }
+            Err(error) => sitemap_source.failure(&error, "sitemap", &mut warnings),
         }
 
         if truncated {
@@ -126,13 +152,140 @@ pub async fn discover(
         }
     }
 
-    Ok(SitemapResponse {
+    sitemap_source.finalize(urls.iter().any(|url| url.source == "sitemap"));
+
+    let mut response = SitemapResponse {
         requested_url: request.url,
         site_url: site_url.to_string(),
+        status: SitemapStatus::Empty,
+        sources: SitemapSources {
+            robots_txt: robots_source.status,
+            sitemap: sitemap_source.status,
+            page_links: SitemapSourceStatus::NotAttempted,
+        },
         urls,
         truncated,
-        warnings: Vec::new(),
-    })
+        warnings,
+    };
+    response.refresh_status();
+    Ok(response)
+}
+
+#[derive(Debug)]
+pub(crate) struct SourceTracker {
+    status: SitemapSourceStatus,
+    attempted: bool,
+    failed: bool,
+    timed_out: bool,
+}
+
+impl Default for SourceTracker {
+    fn default() -> Self {
+        Self {
+            status: SitemapSourceStatus::NotAttempted,
+            attempted: false,
+            failed: false,
+            timed_out: false,
+        }
+    }
+}
+
+impl SourceTracker {
+    fn success(&mut self, discovered: bool) {
+        self.attempted = true;
+        if !self.failed && !self.timed_out {
+            self.status = if discovered {
+                SitemapSourceStatus::Discovered
+            } else {
+                SitemapSourceStatus::Empty
+            };
+        }
+    }
+
+    fn failure(
+        &mut self,
+        error: &ApiError,
+        source: &'static str,
+        warnings: &mut Vec<SitemapWarning>,
+    ) {
+        self.attempted = true;
+        if error.code == "fetch_timeout" {
+            self.timed_out = true;
+            self.status = SitemapSourceStatus::TimedOut;
+            push_warning(warnings, source, "source_timeout");
+        } else {
+            self.failed = true;
+            if !self.timed_out {
+                self.status = SitemapSourceStatus::Failed;
+            }
+            push_warning(warnings, source, "source_failed");
+        }
+    }
+
+    fn finalize(&mut self, discovered: bool) {
+        if self.failed || self.timed_out {
+            return;
+        }
+        if self.attempted {
+            self.status = if discovered {
+                SitemapSourceStatus::Discovered
+            } else {
+                SitemapSourceStatus::Empty
+            };
+        }
+    }
+}
+
+impl SitemapResponse {
+    pub(crate) fn refresh_status(&mut self) {
+        self.status = aggregate_status_from_sources(
+            !self.urls.is_empty(),
+            [
+                &self.sources.robots_txt,
+                &self.sources.sitemap,
+                &self.sources.page_links,
+            ],
+        );
+    }
+}
+
+fn aggregate_status_from_sources(
+    has_urls: bool,
+    sources: [&SitemapSourceStatus; 3],
+) -> SitemapStatus {
+    let timed_out = sources
+        .iter()
+        .any(|source| matches!(source, SitemapSourceStatus::TimedOut));
+    let failed = sources
+        .iter()
+        .any(|source| matches!(source, SitemapSourceStatus::Failed));
+
+    if has_urls {
+        if timed_out || failed {
+            SitemapStatus::Partial
+        } else {
+            SitemapStatus::Discovered
+        }
+    } else if timed_out {
+        SitemapStatus::TimedOut
+    } else if failed {
+        SitemapStatus::Failed
+    } else {
+        SitemapStatus::Empty
+    }
+}
+
+pub(crate) fn push_warning(
+    warnings: &mut Vec<SitemapWarning>,
+    source: &'static str,
+    code: &'static str,
+) {
+    if !warnings
+        .iter()
+        .any(|warning| warning.source == source && warning.code == code)
+    {
+        warnings.push(SitemapWarning { source, code });
+    }
 }
 
 fn default_limit() -> usize {

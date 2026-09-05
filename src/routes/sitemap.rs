@@ -5,7 +5,10 @@ use crate::{
     error::ApiError,
     reader::client,
     routes::rejection::ApiJson,
-    sitemap::{SitemapRequest, SitemapResponse, SitemapUrl, discover, same_origin},
+    sitemap::{
+        SitemapRequest, SitemapResponse, SitemapSourceStatus, SitemapUrl, discover, push_warning,
+        same_origin,
+    },
     state::AppState,
 };
 
@@ -29,6 +32,7 @@ pub async fn sitemap(
             Ok(document) => {
                 let site_url =
                     url::Url::parse(&response.site_url).map_err(|_| ApiError::fetch_failed())?;
+                let mut discovered = false;
 
                 for link in links::collect(&document.markdown, &document.final_url) {
                     let Ok(candidate) = validate_public_url(&link.url) else {
@@ -36,6 +40,7 @@ pub async fn sitemap(
                     };
 
                     if same_origin(&site_url, &candidate) {
+                        discovered = true;
                         response.urls.push(SitemapUrl {
                             url: candidate.to_string(),
                             source: "page_link",
@@ -47,12 +52,24 @@ pub async fn sitemap(
                         break;
                     }
                 }
+                response.sources.page_links = if discovered {
+                    SitemapSourceStatus::Discovered
+                } else {
+                    SitemapSourceStatus::Empty
+                };
             }
-            Err(_) => response
-                .warnings
-                .push("page_link_fallback_failed".to_owned()),
+            Err(error) => {
+                response.sources.page_links = if error.code == "fetch_timeout" {
+                    push_warning(&mut response.warnings, "page_links", "source_timeout");
+                    SitemapSourceStatus::TimedOut
+                } else {
+                    push_warning(&mut response.warnings, "page_links", "fallback_failed");
+                    SitemapSourceStatus::Failed
+                };
+            }
         }
     }
 
+    response.refresh_status();
     Ok(Json(response))
 }

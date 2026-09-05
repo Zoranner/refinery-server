@@ -107,7 +107,7 @@ pub async fn document() -> Json<Value> {
                     "requestBody": { "$ref": "#/components/requestBodies/SitemapRequest" },
                     "responses": {
                         "200": {
-                            "description": "站点地图结果",
+                            "description": "站点地图结果。合法请求采用尽力而为的 HTTP 200；来源失败通过 status、sources 和结构化 warnings 表示。",
                             "content": {
                                 "application/json": {
                                     "schema": { "$ref": "#/components/schemas/SitemapResponse" }
@@ -366,16 +366,57 @@ pub async fn document() -> Json<Value> {
                 },
                 "SitemapResponse": {
                     "type": "object",
-                    "required": ["requested_url", "site_url", "urls", "truncated", "warnings"],
+                    "description": "站点发现的尽力而为结果。合法请求即使来源失败或超时仍返回 HTTP 200，失败事实通过 status、sources 和 warnings 暴露。",
+                    "required": ["requested_url", "site_url", "status", "sources", "urls", "truncated", "warnings"],
                     "properties": {
                         "requested_url": { "type": "string", "format": "uri" },
                         "site_url": { "type": "string", "format": "uri" },
+                        "status": { "$ref": "#/components/schemas/SitemapStatus" },
+                        "sources": { "$ref": "#/components/schemas/SitemapSources" },
                         "urls": {
                             "type": "array",
                             "items": { "$ref": "#/components/schemas/SitemapUrl" }
                         },
                         "truncated": { "type": "boolean" },
-                        "warnings": { "type": "array", "items": { "type": "string" } }
+                        "warnings": {
+                            "type": "array",
+                            "items": { "$ref": "#/components/schemas/SitemapWarning" }
+                        }
+                    }
+                },
+                "SitemapStatus": {
+                    "type": "string",
+                    "description": "站点发现聚合状态。",
+                    "enum": ["discovered", "partial", "empty", "failed", "timed_out"]
+                },
+                "SitemapSourceStatus": {
+                    "type": "string",
+                    "description": "单个站点发现来源的执行状态。",
+                    "enum": ["not_attempted", "discovered", "empty", "failed", "timed_out"]
+                },
+                "SitemapSources": {
+                    "type": "object",
+                    "description": "robots.txt、sitemap 文档和页面同源链接回退各自的状态。",
+                    "required": ["robots_txt", "sitemap", "page_links"],
+                    "properties": {
+                        "robots_txt": { "$ref": "#/components/schemas/SitemapSourceStatus" },
+                        "sitemap": { "$ref": "#/components/schemas/SitemapSourceStatus" },
+                        "page_links": { "$ref": "#/components/schemas/SitemapSourceStatus" }
+                    }
+                },
+                "SitemapWarning": {
+                    "type": "object",
+                    "description": "来源失败或超时的结构化可观测告警。",
+                    "required": ["source", "code"],
+                    "properties": {
+                        "source": {
+                            "type": "string",
+                            "enum": ["robots_txt", "sitemap", "page_links"]
+                        },
+                        "code": {
+                            "type": "string",
+                            "enum": ["source_failed", "source_timeout"]
+                        }
                     }
                 },
                 "SitemapUrl": {

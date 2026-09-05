@@ -215,6 +215,34 @@ Reader 返回的 `text/plain` 或 Markdown 不能覆盖这个事实。
 
 后续如需提升资料调研质量，应在搜索层引入可审查的来源策略（例如来源白名单、域名限定或搜索配置档），而不是继续向全局配置堆叠引擎。
 
+## 站点发现结果模型
+
+`POST /v1/sitemap` 返回站点发现的最终聚合结果，保留请求地址、站点根地址、发现 URL 和截断事实，并增加整体状态与来源状态：
+
+```json
+{
+  "requested_url": "https://example.com/docs/",
+  "site_url": "https://example.com/",
+  "status": "partial",
+  "sources": {
+    "robots_txt": "failed",
+    "sitemap": "discovered",
+    "page_links": "not_attempted"
+  },
+  "urls": [
+    { "url": "https://example.com/docs/start", "source": "sitemap" }
+  ],
+  "truncated": false,
+  "warnings": [
+    { "source": "robots_txt", "code": "source_failed" }
+  ]
+}
+```
+
+`status` 取 `discovered`、`partial`、`empty`、`failed` 或 `timed_out`；`sources` 分别记录 `robots_txt`、`sitemap` 和页面同源链接回退的 `not_attempted`、`discovered`、`empty`、`failed` 或 `timed_out`。结构化 warning 当前使用 `source_failed` 和 `source_timeout`，并携带发生来源，避免把部分发现结果与来源失败压缩成一个不可解释的错误。
+
+站点发现是尽力而为接口：合法请求统一返回 HTTP 200，即使某个或全部来源失败、超时或最终没有 URL。来源失败仍会记录在 `status`、`sources` 和 `warnings` 中，并按顺序继续尝试 sitemap 或页面链接回退；当前实现不会为 `/v1/sitemap` 发出 HTTP 413 或 HTTP 504。请求参数无效、目标地址被策略阻止等校验错误仍使用统一 JSON 错误响应。
+
 ## 超时与预算
 
 每次外部操作使用独立预算，并由请求总预算约束：
@@ -275,6 +303,8 @@ Reader 返回的 `text/plain` 或 Markdown 不能覆盖这个事实。
 - 所有错误响应均为统一 JSON；
 - SSRF、重定向、大小限制和无持久化边界保持不变；
 - OpenAPI、README、测试和实际线上 JSON 结构一致。
+
+本轮还清理了旧的仅下载错误 helper。对 `src`、`tests`、`README.md`、设计规格和实施计划执行活动引用扫描，未发现旧仅下载错误标识的活动引用；历史验收记录 `docs/reviews/2026-09-04-refinery-material-access-acceptance.md` 明确保留旧线上证据，不属于活动契约。
 
 ## 当前不变项
 

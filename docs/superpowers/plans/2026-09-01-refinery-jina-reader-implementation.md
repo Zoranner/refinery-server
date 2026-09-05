@@ -16,7 +16,7 @@
 - SearXNG 只用于搜索；Jina Reader 只用于单 URL 的 Markdown/PDF 抽取；两者均不发布宿主机端口。
 - 首版不做持久化缓存、数据库、网页归档、任务队列、深度爬取、浏览器渲染、代理、OCR、Office 解析或 SaaS 专有能力。
 - `POST /v1/content` 接受任意绝对 `http`/`https` 公网 URL；拒绝字面量回环、私有、链路本地、保留和其他非公网 IP。
-- 无后缀、已知网页后缀、已知纯文本后缀和 `.pdf` 调用 Reader；已知图片后缀和未登记扩展名返回 `415 resource_download_required` 及 `/v1/resource` 地址，不调用 Reader。
+- 无后缀、已知网页后缀、已知纯文本后缀和 `.pdf` 调用 Reader；已知图片后缀和未登记扩展名当前统一返回 `200 download_only` 与 `/v1/resource` 地址，不调用 Reader。旧版 415 下载错误仅作为历史行为保留在验收记录中。
 - `GET /v1/resource` 下载任意公网资源，不按媒体类型拒绝；限制为 20 MiB、最多 5 次重定向，并以附件形式返回原始 `Content-Type`。
 - 调用方的 Cookie、Authorization、Reader 特有请求头和请求体不得透传给外网或 Reader。
 - Reader 请求固定携带无缓存、Markdown、链接保留和 20 秒超时设置；Reader 与 SearXNG 内部 HTTP 客户端使用 5 秒连接超时和 20 秒总超时；`refinery` 对 Reader 响应强制 10 MiB 上限。
@@ -184,7 +184,7 @@ causes a Reader `POST /` request with JSON `{ "url": "https://example.test/artic
 
 Add separate tests that reject `file://`, `ftp://`, `127.0.0.1`, `::1`, `169.254.169.254`, and `192.168.0.1` with `403/blocked_target`; and that reject `max_chars` outside `1000..=24000` with `400/invalid_request`.
 
-Add classification tests proving that `.txt`, `.md`, `.csv`, `.json`, `.xml`, `.yaml`, and `.yml` are sent to Reader and returned as `resource_kind: text`; `.pdf` is sent to Reader and returned as `pdf`; known image extensions and unregistered extensions do not call Reader and return `415/resource_download_required` with an encoded `/v1/resource` URL.
+Add classification tests proving that `.txt`, `.md`, `.csv`, `.json`, `.xml`, `.yaml`, and `.yml` are sent to Reader and returned as `resource_kind: text`; `.pdf` is sent to Reader and returned as `pdf`; known image extensions and unregistered extensions do not call Reader and return `200/download_only` with an encoded `/v1/resource` URL. Historical 415 behavior is covered only by the archived acceptance record.
 
 - [ ] **Step 2: 运行测试确认失败**
 
@@ -196,7 +196,7 @@ Expected: FAIL because the Reader client and content route are absent.
 
 The Reader client sends only fixed headers; it never forwards caller headers. It captures `x-responded-url` when Reader provides it and otherwise uses the requested URL as `final_url`. It maps Reader 4xx/5xx, malformed responses, timeout, and >10 MiB response bodies to the documented `fetch_failed`, `fetch_timeout`, and `response_too_large` errors.
 
-Validate URL scheme/host and literal IP before classification. Classify by URL path without an extra probe request: known HTML and extensionless URLs are `html`, known text extensions are `text`, and `.pdf` is `pdf`. Send those three kinds to Reader. Known image and unknown-extension URLs return `resource_download_required` without calling Reader. Chunk by Rust character boundaries, use Markdown link parsing to collect only current-chunk links, and resolve relative URLs against `final_url`.
+Validate URL scheme/host and literal IP before classification. Classify by URL path without an extra probe request: known HTML and extensionless URLs are `html`, known text extensions are `text`, and `.pdf` is `pdf`. Send those three kinds to Reader. Known image and unknown-extension URLs return `download_only` without calling Reader. Chunk by Rust character boundaries, use Markdown link parsing to collect only current-chunk links, and resolve relative URLs against `final_url`.
 
 - [ ] **Step 4: Verify green**
 

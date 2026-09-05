@@ -185,7 +185,7 @@ async fn content_reports_download_only_without_calling_reader() {
 }
 ```
 
-`download_only` is a normal `200` material response in the new contract. The old `415 resource_download_required` response is removed with the flat response shape; callers use `extraction.status` and `download.resource_url` instead.
+`download_only` is a normal `200` material response in the current contract. The former 415 download-error response is removed with the flat response shape; callers use `extraction.status` and `download.resource_url` instead.
 
 - [ ] **Step 2: Run tests to verify they fail**
 

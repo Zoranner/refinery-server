@@ -83,11 +83,44 @@ async fn upstream_business_error_remains_machine_readable() {
 }
 
 #[test]
-fn legacy_download_only_error_helpers_are_not_exported() {
-    for path in ["src/error.rs", "src/routes/openapi.rs"] {
-        let source = std::fs::read_to_string(path).unwrap();
-        assert!(!source.contains("resource_download_required"), "{path}");
-        assert!(!source.contains("unsupported_media_type"), "{path}");
+fn legacy_download_only_error_helpers_are_absent_from_active_contract() {
+    let forbidden = [
+        concat!("resource_", "download_required"),
+        concat!("unsupported_", "media_type"),
+    ];
+    let mut files = Vec::new();
+    collect_files(std::path::Path::new("src"), &mut files);
+    collect_files(std::path::Path::new("tests"), &mut files);
+    files.push(std::path::PathBuf::from("README.md"));
+    collect_files(std::path::Path::new("docs/superpowers/specs"), &mut files);
+    collect_files(std::path::Path::new("docs/superpowers/plans"), &mut files);
+
+    for path in files {
+        if path
+            == std::path::Path::new(
+                "docs/reviews/2026-09-04-refinery-material-access-acceptance.md",
+            )
+        {
+            continue;
+        }
+        let source = std::fs::read_to_string(&path).unwrap();
+        for term in forbidden {
+            assert!(!source.contains(term), "{term} found in {}", path.display());
+        }
+    }
+}
+
+fn collect_files(root: &std::path::Path, files: &mut Vec<std::path::PathBuf>) {
+    for entry in std::fs::read_dir(root).unwrap() {
+        let path = entry.unwrap().path();
+        if path.is_dir() {
+            collect_files(&path, files);
+        } else if path
+            .extension()
+            .is_some_and(|extension| extension == "rs" || extension == "md")
+        {
+            files.push(path);
+        }
     }
 }
 

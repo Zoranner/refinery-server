@@ -152,16 +152,18 @@ git commit -m "建立站点发现结果状态"
 **Interfaces:**
 
 - Consumes: 当前统一 `MaterialStatus::DownloadOnly` 和 `/v1/content` 200 响应。
-- Produces: 不再存在无调用方的 `resource_download_required`/`unsupported_media_type` 辅助路径，OpenAPI 只描述实际错误。
+- Produces: 不再存在无调用方的旧下载错误辅助路径，OpenAPI 只描述实际错误。
 
 - [ ] **Step 1: Write the failing structural test**
 
 ```rust
 #[test]
-fn legacy_download_only_error_helpers_are_not_exported() {
-    let source = std::fs::read_to_string("src/error.rs").unwrap();
-    assert!(!source.contains("resource_download_required"));
-    assert!(!source.contains("unsupported_media_type"));
+fn legacy_download_only_error_helpers_are_absent_from_active_contract() {
+    let forbidden = legacy_download_helper_names();
+    for path in active_contract_files() {
+        let source = std::fs::read_to_string(path).unwrap();
+        assert!(forbidden.iter().all(|term| !source.contains(term)));
+    }
 }
 ```
 
@@ -306,7 +308,7 @@ cargo build --release --locked
 git diff --check
 ```
 
-Expected: all pass and the OpenAPI/schema/documentation scan finds no stale `resource_download_required`, `content_kind`, or sitemap 504 claims.
+Expected: all pass and the OpenAPI/schema/documentation scan finds no stale legacy download-error names, `content_kind`, or sitemap 504 claims.
 
 - [ ] **Step 5: Commit**
 

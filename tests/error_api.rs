@@ -2,7 +2,6 @@ use axum::{
     Router,
     body::Body,
     http::{Request, StatusCode},
-    response::IntoResponse,
 };
 use http_body_util::BodyExt;
 use serde_json::{Value, json};
@@ -83,23 +82,13 @@ async fn upstream_business_error_remains_machine_readable() {
     );
 }
 
-#[tokio::test]
-async fn resource_download_required_preserves_resource_url() {
-    let url = url::Url::parse("https://example.test/report.pdf?download=1").unwrap();
-    let response = refinery::error::ApiError::resource_download_required(&url).into_response();
-
-    assert_eq!(response.status(), StatusCode::UNSUPPORTED_MEDIA_TYPE);
-    assert_eq!(response.headers()["content-type"], "application/json");
-    assert_eq!(
-        json_body(response).await,
-        json!({
-            "error": {
-                "code": "resource_download_required",
-                "message": "该资源不支持文本抽取，请通过资源下载接口获取原文件"
-            },
-            "resource_url": "/v1/resource?url=https%3A%2F%2Fexample.test%2Freport.pdf%3Fdownload%3D1"
-        })
-    );
+#[test]
+fn legacy_download_only_error_helpers_are_not_exported() {
+    for path in ["src/error.rs", "src/routes/openapi.rs"] {
+        let source = std::fs::read_to_string(path).unwrap();
+        assert!(!source.contains("resource_download_required"), "{path}");
+        assert!(!source.contains("unsupported_media_type"), "{path}");
+    }
 }
 
 fn app() -> Router {

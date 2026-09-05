@@ -196,14 +196,6 @@ pub async fn document() -> Json<Value> {
                             "schema": { "$ref": "#/components/schemas/ErrorResponse" }
                         }
                     }
-                },
-                "UnsupportedMediaType": {
-                    "description": "仍保留该状态码供非内容业务使用",
-                    "content": {
-                        "application/json": {
-                            "schema": { "$ref": "#/components/schemas/ErrorResponse" }
-                        }
-                    }
                 }
             },
             "schemas": {

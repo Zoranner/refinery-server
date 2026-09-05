@@ -67,27 +67,6 @@ impl ApiError {
             resource_url: None,
         }
     }
-
-    pub const fn unsupported_media_type() -> Self {
-        Self {
-            status: StatusCode::UNSUPPORTED_MEDIA_TYPE,
-            code: "unsupported_media_type",
-            message: "resource media type is not supported",
-            resource_url: None,
-        }
-    }
-
-    pub fn resource_download_required(url: &url::Url) -> Self {
-        let encoded: String =
-            url::form_urlencoded::byte_serialize(url.as_str().as_bytes()).collect();
-
-        Self {
-            status: StatusCode::UNSUPPORTED_MEDIA_TYPE,
-            code: "resource_download_required",
-            message: "该资源不支持文本抽取，请通过资源下载接口获取原文件",
-            resource_url: Some(format!("/v1/resource?url={encoded}")),
-        }
-    }
 }
 
 impl IntoResponse for ApiError {

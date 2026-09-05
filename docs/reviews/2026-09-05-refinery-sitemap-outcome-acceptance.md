@@ -4,7 +4,7 @@
 
 - 验收日期：2026-09-05
 - 验收范围：当前 checkout 的 sitemap 状态模型、OpenAPI 契约、架构说明和本地 Rust 门禁。
-- 未修改：sitemap 运行逻辑，以及 2026 年 9 月 4 日历史验收记录。
+- 本阶段 Task 1 已修改 sitemap 运行逻辑；Task 4 仅同步 OpenAPI 与验收文档，未再次修改 sitemap 运行逻辑。2026 年 9 月 4 日历史验收记录未修改。
 
 ## 本地 Rust 门禁
 

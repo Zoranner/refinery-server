@@ -104,6 +104,8 @@ POST /v1/sitemap
 
 ```json
 {
+  "requested_url": "https://example.com/docs/",
+  "site_url": "https://example.com",
   "status": "discovered",
   "sources": {
     "robots_txt": "discovered",
@@ -113,6 +115,7 @@ POST /v1/sitemap
   "urls": [
     { "url": "https://example.com/docs/start", "source": "sitemap" }
   ],
+  "truncated": false,
   "warnings": []
 }
 ```

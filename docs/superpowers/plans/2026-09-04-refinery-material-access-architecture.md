@@ -49,10 +49,16 @@ fn material_model_keeps_target_kind_separate_from_extraction_media_type() {
         refinery::content::ResourceKind::Pdf,
         "application/pdf".to_owned(),
     );
-    let extraction = refinery::material::ExtractionResult::blocked(
-        "reader_auto",
-        "目标站点返回挑战页".to_owned(),
-    );
+    let extraction = refinery::material::ExtractionResult {
+        status: refinery::material::MaterialStatus::Blocked,
+        engine: "reader_auto".to_owned(),
+        format: "markdown".to_owned(),
+        reason: Some("目标站点返回挑战页".to_owned()),
+        reader_content_type: Some("text/plain; charset=utf-8".to_owned()),
+        title: None,
+        markdown: String::new(),
+        links: Vec::new(),
+    };
 
     assert_eq!(target.resource_kind, refinery::content::ResourceKind::Pdf);
     assert_eq!(target.content_type, "application/pdf");

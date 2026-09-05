@@ -76,3 +76,48 @@ fn material_response_supports_capabilities_pagination_diagnostics_and_json_seria
     assert_eq!(json["diagnostics"]["upstream_status"], 200);
     assert_eq!(json["diagnostics"]["warnings"][0], "内容来自 Reader");
 }
+
+#[test]
+fn material_response_serializes_reader_media_type_separately_from_pdf_target() {
+    let response = refinery::material::MaterialContentResponse {
+        target: refinery::material::TargetFacts::new(
+            "https://example.test/report.pdf".parse().unwrap(),
+            "https://example.test/report.pdf".parse().unwrap(),
+            refinery::content::ResourceKind::Pdf,
+            "application/pdf".to_owned(),
+        ),
+        extraction: refinery::material::ExtractionResult {
+            status: refinery::material::MaterialStatus::Blocked,
+            engine: "reader_auto".to_owned(),
+            format: "markdown".to_owned(),
+            reason: Some("Reader 返回挑战页".to_owned()),
+            reader_content_type: Some("text/plain; charset=utf-8".to_owned()),
+            title: None,
+            markdown: String::new(),
+            links: Vec::new(),
+        },
+        download: refinery::material::DownloadCapability {
+            available: true,
+            resource_url: None,
+        },
+        pagination: refinery::material::Pagination {
+            offset: 0,
+            next_offset: None,
+            truncated: false,
+        },
+        diagnostics: refinery::material::Diagnostics {
+            upstream_status: Some(403),
+            duration_ms: None,
+            timeout_seconds: Some(60),
+            warnings: Vec::new(),
+        },
+    };
+
+    let json = serde_json::to_value(response).unwrap();
+
+    assert_eq!(json["target"]["content_type"], "application/pdf");
+    assert_eq!(
+        json["extraction"]["reader_content_type"],
+        "text/plain; charset=utf-8"
+    );
+}

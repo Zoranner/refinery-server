@@ -100,6 +100,25 @@ POST /v1/sitemap
 }
 ```
 
+`/v1/sitemap` 的成功响应始终使用 HTTP 200，并通过结果状态而不是 HTTP 错误码表达发现过程：
+
+```json
+{
+  "status": "discovered",
+  "sources": {
+    "robots_txt": "discovered",
+    "sitemap": "discovered",
+    "page_links": "not_attempted"
+  },
+  "urls": [
+    { "url": "https://example.com/docs/start", "source": "sitemap" }
+  ],
+  "warnings": []
+}
+```
+
+`status` 表示整体发现结果（例如 `discovered`、`partial`、`empty`、`failed` 或 `timed_out`）；`sources` 记录 `robots_txt`、`sitemap` 和页面链接回退各自是否成功、为空、失败或超时；`warnings` 是包含 `code` 和 `source` 的结构化警告数组。站点地图发现采用尽力而为语义：某个来源失败时仍会尝试后续回退并返回已发现的 URL，因此当前实现不会为 `/v1/sitemap` 发出 413 或 504。
+
 ```text
 GET /v1/resource?url=https%3A%2F%2Fexample.com%2Fdiagram.png
 ```

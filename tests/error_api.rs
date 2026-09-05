@@ -1,7 +1,11 @@
+use std::net::SocketAddr;
+
 use axum::{
     Router,
     body::Body,
     http::{Request, StatusCode},
+    response::IntoResponse,
+    routing::get,
 };
 use http_body_util::BodyExt;
 use serde_json::{Value, json};
@@ -68,7 +72,13 @@ async fn blocked_target_preserves_business_error_code() {
 
 #[tokio::test]
 async fn upstream_business_error_remains_machine_readable() {
-    let response = post_json(app(), "/v1/search", json!({ "query": "rust" })).await;
+    let upstream = start_failing_searxng().await;
+    let response = post_json(
+        app_with_searxng(&format!("http://{}", upstream.address)),
+        "/v1/search",
+        json!({ "query": "rust" }),
+    )
+    .await;
 
     assert_eq!(response.status(), StatusCode::BAD_GATEWAY);
     assert_eq!(
@@ -125,9 +135,18 @@ fn collect_files(root: &std::path::Path, files: &mut Vec<std::path::PathBuf>) {
 }
 
 fn app() -> Router {
-    refinery::routes::router(refinery::state::AppState::new(
-        refinery::config::Config::for_test(),
-    ))
+    app_with_searxng("http://127.0.0.1:9")
+}
+
+fn app_with_searxng(searxng_base_url: &str) -> Router {
+    refinery::routes::router(refinery::state::AppState::new(refinery::config::Config {
+        bind: "127.0.0.1".parse().unwrap(),
+        port: 0,
+        searxng_base_url: searxng_base_url.to_owned(),
+        reader_base_url: "http://reader.test".to_owned(),
+        resource_timeout: std::time::Duration::from_secs(20),
+        reader_timeout: std::time::Duration::from_secs(60),
+    }))
 }
 
 async fn post_json(app: Router, path: &str, body: Value) -> axum::response::Response {
@@ -148,4 +167,27 @@ async fn post_raw(app: Router, path: &str, body: impl Into<Body>) -> axum::respo
 async fn json_body(response: axum::response::Response) -> Value {
     let bytes = response.into_body().collect().await.unwrap().to_bytes();
     serde_json::from_slice(&bytes).unwrap()
+}
+
+struct TestServer {
+    address: SocketAddr,
+}
+
+async fn start_failing_searxng() -> TestServer {
+    let router = Router::new().route("/search", get(searxng_failure));
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let address = listener.local_addr().unwrap();
+
+    tokio::spawn(async move {
+        axum::serve(listener, router).await.unwrap();
+    });
+
+    TestServer { address }
+}
+
+async fn searxng_failure() -> impl IntoResponse {
+    (
+        StatusCode::INTERNAL_SERVER_ERROR,
+        "fixture upstream failure",
+    )
 }

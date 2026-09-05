@@ -52,6 +52,8 @@ Copy-Item .env.example .env
 
 `deploy/` 始终是可复制的部署模板，不是接口文档或实际运行目录。
 
+`POST /v1/sitemap` 成功时始终返回 HTTP 200，并在响应中提供 `status`、`sources`、`urls` 和结构化 `warnings`。`status` 是整体发现结果，`sources.robots_txt`、`sources.sitemap` 与 `sources.page_links` 分别记录各来源的尝试结果；每条 warning 至少包含 `source` 和 `code`，单个来源失败或超时会进入 warning，并不阻止后续回退。该接口采用尽力而为语义，当前实现不会返回 413 或 504；请以 `status` 和 `warnings` 判断是否需要人工复核。
+
 ## 启动
 
 ```powershell

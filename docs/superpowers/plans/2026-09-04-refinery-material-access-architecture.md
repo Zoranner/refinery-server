@@ -47,7 +47,7 @@ fn material_model_keeps_target_kind_separate_from_extraction_media_type() {
         "https://example.test/report.pdf".parse().unwrap(),
         "https://example.test/report.pdf".parse().unwrap(),
         refinery::content::ResourceKind::Pdf,
-        "text/plain; charset=utf-8".to_owned(),
+        "application/pdf".to_owned(),
     );
     let extraction = refinery::material::ExtractionResult::blocked(
         "reader_auto",
@@ -55,7 +55,11 @@ fn material_model_keeps_target_kind_separate_from_extraction_media_type() {
     );
 
     assert_eq!(target.resource_kind, refinery::content::ResourceKind::Pdf);
-    assert_eq!(target.content_type, "text/plain; charset=utf-8");
+    assert_eq!(target.content_type, "application/pdf");
+    assert_eq!(
+        extraction.reader_content_type.as_deref(),
+        Some("text/plain; charset=utf-8")
+    );
     assert_eq!(extraction.status, refinery::material::MaterialStatus::Blocked);
 }
 ```
@@ -92,6 +96,7 @@ pub struct ExtractionResult {
     pub engine: String,
     pub format: String,
     pub reason: Option<String>,
+    pub reader_content_type: Option<String>,
 }
 
 pub struct DownloadCapability {
@@ -355,7 +360,7 @@ git commit -m "统一接口错误响应格式"
 **Interfaces:**
 
 - Consumes: SearXNG JSON 响应和请求页码。
-- Produces: 带 `pagination.has_more`、`pagination.requested_page` 和 `source_status` 的搜索响应。
+- Produces: 带 `pagination.has_more`、`pagination.requested_page` 和 `diagnostics.source_status` 的搜索响应。
 
 - [ ] **Step 1: Write the failing test**
 

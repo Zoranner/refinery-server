@@ -76,14 +76,9 @@ impl RefineryMcp {
             limit: input.limit.unwrap_or(10),
             language: input.language,
         };
-        request.validate().map_err(error)?;
-        let result = crate::search::searxng::search(
-            &self.state.http_client,
-            &self.state.config.searxng_base_url,
-            &request,
-        )
-        .await
-        .map_err(error)?;
+        let result = crate::application::search(&self.state, request)
+            .await
+            .map_err(error)?;
         Ok(CallToolResult::structured(
             serde_json::to_value(result)
                 .map_err(|e| rmcp::ErrorData::internal_error(e.to_string(), None))?,
@@ -103,27 +98,9 @@ impl RefineryMcp {
             offset: input.offset.unwrap_or(0),
             max_chars: input.max_chars.unwrap_or(12000),
         };
-        let url = request.validate().map_err(error)?;
-        let result = crate::reader::client::read(
-            &self.state.http_client,
-            &self.state.config.reader_base_url,
-            &url,
-            self.state.config.reader_timeout,
-        )
-        .await
-        .map_err(error)?;
-        let kind = crate::content::kind_for_response(&result.final_url, &result.content_type);
-        let target = crate::material::TargetFacts::new(
-            request
-                .url
-                .parse()
-                .map_err(|_| error(crate::error::ApiError::invalid_request("url is invalid")))?,
-            result.final_url,
-            kind,
-            result.content_type.clone(),
-        );
-        let result =
-            crate::material::normalize_reader_result(target, result.markdown, result.content_type);
+        let result = crate::application::read(&self.state, request)
+            .await
+            .map_err(error)?;
         Ok(CallToolResult::structured(
             serde_json::to_value(result)
                 .map_err(|e| rmcp::ErrorData::internal_error(e.to_string(), None))?,
@@ -142,7 +119,7 @@ impl RefineryMcp {
             url: input.url,
             limit: 100,
         };
-        let result = crate::sitemap::discover(self.state.sitemap_fetcher.clone(), request)
+        let result = crate::application::explore(&self.state, request)
             .await
             .map_err(error)?;
         Ok(CallToolResult::structured(
@@ -159,7 +136,7 @@ impl RefineryMcp {
         &self,
         Parameters(input): Parameters<UrlInput>,
     ) -> Result<CallToolResult, rmcp::ErrorData> {
-        let url = crate::content::validate_public_url(&input.url).map_err(error)?;
+        let url = crate::application::validate_download(&input.url).map_err(error)?;
         Ok(CallToolResult::structured(serde_json::json!({
             "requested_url": url.as_str(),
             "resource_uri": format!("refinery://resource/{}", url::form_urlencoded::byte_serialize(url.as_str().as_bytes()).collect::<String>()),

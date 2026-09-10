@@ -42,12 +42,7 @@ fn material_response_supports_capabilities_pagination_diagnostics_and_json_seria
             "none",
             "PDF 不提供可抽取文本",
         ),
-        download: refinery::material::DownloadCapability {
-            available: true,
-            resource_url: Some(
-                "/v1/resource?url=https%3A%2F%2Fexample.test%2Freport.pdf".to_owned(),
-            ),
-        },
+        download: refinery::material::DownloadCapability { available: true },
         pagination: refinery::material::Pagination {
             offset: 100,
             next_offset: Some(200),
@@ -68,10 +63,6 @@ fn material_response_supports_capabilities_pagination_diagnostics_and_json_seria
     assert_eq!(json["extraction"]["engine"], "none");
     assert_eq!(json["extraction"]["status"], "download_only");
     assert_eq!(json["download"]["available"], true);
-    assert_eq!(
-        json["download"]["resource_url"],
-        "/v1/resource?url=https%3A%2F%2Fexample.test%2Freport.pdf"
-    );
     assert_eq!(json["pagination"]["next_offset"], 200);
     assert_eq!(json["diagnostics"]["upstream_status"], 200);
     assert_eq!(json["diagnostics"]["warnings"][0], "内容来自 Reader");
@@ -96,10 +87,7 @@ fn material_response_serializes_reader_media_type_separately_from_pdf_target() {
             markdown: String::new(),
             links: Vec::new(),
         },
-        download: refinery::material::DownloadCapability {
-            available: true,
-            resource_url: None,
-        },
+        download: refinery::material::DownloadCapability { available: true },
         pagination: refinery::material::Pagination {
             offset: 0,
             next_offset: None,

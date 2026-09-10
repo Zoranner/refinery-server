@@ -7,7 +7,10 @@ use rmcp::transport::{
 use rmcp::{
     ServerHandler,
     handler::server::{router::tool::ToolRouter, wrapper::Parameters},
-    model::{CallToolResult, ServerCapabilities, ServerInfo},
+    model::{
+        CallToolResult, ReadResourceRequestParams, ReadResourceResponse, ReadResourceResult,
+        ResourceContents, ServerCapabilities, ServerInfo,
+    },
     schemars::{self, JsonSchema},
     tool, tool_handler, tool_router,
 };
@@ -169,9 +172,43 @@ impl RefineryMcp {
 #[tool_handler]
 impl ServerHandler for RefineryMcp {
     fn get_info(&self) -> ServerInfo {
-        ServerInfo::new(ServerCapabilities::builder().enable_tools().build()).with_instructions(
+        ServerInfo::new(
+            ServerCapabilities::builder()
+                .enable_tools()
+                .enable_resources()
+                .build(),
+        )
+        .with_instructions(
             "Refinery provides controlled public web search, reading, exploration, and downloads.",
         )
+    }
+
+    async fn read_resource(
+        &self,
+        request: ReadResourceRequestParams,
+        _context: rmcp::service::RequestContext<rmcp::RoleServer>,
+    ) -> Result<ReadResourceResponse, rmcp::ErrorData> {
+        let encoded = request
+            .uri
+            .strip_prefix("refinery://resource/")
+            .ok_or_else(|| rmcp::ErrorData::invalid_params("unsupported resource URI", None))?;
+        let raw: String = url::form_urlencoded::parse(encoded.as_bytes())
+            .map(|(key, value)| if key.is_empty() { value } else { key })
+            .collect();
+        let url = crate::content::validate_public_url(&raw).map_err(error)?;
+        let resource = self
+            .state
+            .resource_fetcher
+            .get_with_timeout(&url, self.state.config.resource_timeout)
+            .await
+            .map_err(error)?;
+        let blob = {
+            use base64::Engine;
+            base64::engine::general_purpose::STANDARD.encode(resource.bytes)
+        };
+        Ok(ReadResourceResponse::Complete(ReadResourceResult::new(
+            vec![ResourceContents::blob(blob, request.uri).with_mime_type(resource.content_type)],
+        )))
     }
 }
 

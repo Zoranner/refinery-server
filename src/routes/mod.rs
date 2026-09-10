@@ -1,10 +1,4 @@
-pub mod content;
 pub mod health;
-pub mod openapi;
-pub mod rejection;
-pub mod resource;
-pub mod search;
-pub mod sitemap;
 
 use axum::{Router, routing::get};
 

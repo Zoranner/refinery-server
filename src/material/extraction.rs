@@ -29,7 +29,6 @@ pub(crate) fn normalize_reader_result_with_options(
     offset: usize,
     max_chars: usize,
 ) -> MaterialContentResponse {
-    let resource_url = resource_url(&target.requested_url);
     let (status, reason) = if let Some(reason) = challenge_reason(&markdown) {
         (MaterialStatus::Blocked, Some(reason.to_owned()))
     } else if markdown.trim().is_empty() {
@@ -53,41 +52,11 @@ pub(crate) fn normalize_reader_result_with_options(
             markdown: part.markdown,
             links: response_links,
         },
-        download: DownloadCapability {
-            available: true,
-            resource_url: Some(resource_url),
-        },
+        download: DownloadCapability { available: true },
         pagination: Pagination {
             offset: part.offset,
             next_offset: part.next_offset,
             truncated: part.next_offset.is_some(),
-        },
-        diagnostics: Diagnostics {
-            upstream_status: None,
-            duration_ms: None,
-            timeout_seconds: None,
-            warnings: Vec::new(),
-        },
-    }
-}
-
-pub(crate) fn download_only_response(target: TargetFacts) -> MaterialContentResponse {
-    let resource_url = resource_url(&target.requested_url);
-
-    MaterialContentResponse {
-        target,
-        extraction: ExtractionResult::download_only(
-            "none",
-            "该资源不支持文本抽取，请通过资源下载接口获取原文件",
-        ),
-        download: DownloadCapability {
-            available: true,
-            resource_url: Some(resource_url),
-        },
-        pagination: Pagination {
-            offset: 0,
-            next_offset: None,
-            truncated: false,
         },
         diagnostics: Diagnostics {
             upstream_status: None,
@@ -116,9 +85,4 @@ fn title(markdown: &str) -> Option<String> {
         .find_map(|line| line.strip_prefix("# ").map(str::trim))
         .filter(|line| !line.is_empty())
         .map(str::to_owned)
-}
-
-fn resource_url(url: &url::Url) -> String {
-    let encoded: String = url::form_urlencoded::byte_serialize(url.as_str().as_bytes()).collect();
-    format!("/v1/resource?url={encoded}")
 }

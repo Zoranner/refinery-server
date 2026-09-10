@@ -169,7 +169,7 @@ impl RefineryMcp {
     }
 }
 
-#[tool_handler]
+#[tool_handler(router = self.tool_router)]
 impl ServerHandler for RefineryMcp {
     fn get_info(&self) -> ServerInfo {
         ServerInfo::new(

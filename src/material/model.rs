@@ -97,7 +97,6 @@ impl ExtractionResult {
 #[derive(Debug, Serialize)]
 pub struct DownloadCapability {
     pub available: bool,
-    pub resource_url: Option<String>,
 }
 
 #[derive(Debug, Serialize)]

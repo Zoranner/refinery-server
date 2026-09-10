@@ -8,8 +8,9 @@ use rmcp::{
     ServerHandler,
     handler::server::{router::tool::ToolRouter, wrapper::Parameters},
     model::{
-        CallToolResult, Implementation, ReadResourceRequestParams, ReadResourceResponse,
-        ReadResourceResult, ResourceContents, ServerCapabilities, ServerInfo,
+        CallToolResult, ContentBlock, Implementation, ReadResourceRequestParams,
+        ReadResourceResponse, ReadResourceResult, Resource, ResourceContents, ServerCapabilities,
+        ServerInfo,
     },
     schemars::{self, JsonSchema},
     tool, tool_handler, tool_router,
@@ -138,12 +139,14 @@ impl RefineryMcp {
         Parameters(input): Parameters<UrlInput>,
     ) -> Result<CallToolResult, rmcp::ErrorData> {
         let url = crate::application::validate_download(&input.url).map_err(error)?;
-        Ok(CallToolResult::structured(serde_json::json!({
-            "requested_url": url.as_str(),
-            "resource_uri": format!("refinery://resource/{}", url::form_urlencoded::byte_serialize(url.as_str().as_bytes()).collect::<String>()),
-            "available": true,
-            "persistent": false
-        })))
+        let uri = format!(
+            "refinery://resource/{}",
+            url::form_urlencoded::byte_serialize(url.as_str().as_bytes()).collect::<String>()
+        );
+        Ok(CallToolResult::success(vec![ContentBlock::resource_link(
+            Resource::new(&uri, "web_download")
+                .with_description("Read this resource through MCP resources/read."),
+        )]))
     }
 }
 

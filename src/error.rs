@@ -10,7 +10,6 @@ pub struct ApiError {
     pub status: StatusCode,
     pub code: &'static str,
     pub message: &'static str,
-    pub resource_url: Option<String>,
 }
 
 impl ApiError {
@@ -19,7 +18,6 @@ impl ApiError {
             status: StatusCode::BAD_REQUEST,
             code: "invalid_request",
             message,
-            resource_url: None,
         }
     }
 
@@ -28,7 +26,6 @@ impl ApiError {
             status: StatusCode::BAD_GATEWAY,
             code: "search_upstream_failed",
             message: "search upstream is unavailable",
-            resource_url: None,
         }
     }
 
@@ -37,7 +34,6 @@ impl ApiError {
             status: StatusCode::FORBIDDEN,
             code: "blocked_target",
             message: "target address is not allowed",
-            resource_url: None,
         }
     }
 
@@ -46,7 +42,6 @@ impl ApiError {
             status: StatusCode::BAD_GATEWAY,
             code: "fetch_failed",
             message: "content upstream is unavailable",
-            resource_url: None,
         }
     }
 
@@ -55,7 +50,6 @@ impl ApiError {
             status: StatusCode::GATEWAY_TIMEOUT,
             code: "fetch_timeout",
             message: "content upstream timed out",
-            resource_url: None,
         }
     }
 
@@ -64,7 +58,6 @@ impl ApiError {
             status: StatusCode::PAYLOAD_TOO_LARGE,
             code: "response_too_large",
             message: "content response is too large",
-            resource_url: None,
         }
     }
 }
@@ -78,7 +71,6 @@ impl IntoResponse for ApiError {
                     code: self.code,
                     message: self.message,
                 },
-                resource_url: self.resource_url,
             }),
         )
             .into_response()
@@ -88,8 +80,6 @@ impl IntoResponse for ApiError {
 #[derive(Serialize)]
 struct ErrorResponse {
     error: ErrorBody,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    resource_url: Option<String>,
 }
 
 #[derive(Serialize)]

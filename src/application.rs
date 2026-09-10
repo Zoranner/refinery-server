@@ -1,9 +1,15 @@
 use std::sync::Arc;
 
 use crate::{
-    content::{ContentRequest, kind_for_response, links, validate_public_url},
+    content::{
+        ContentRequest, ResourceKind, kind_for_response, kind_for_url, links, target_content_type,
+        validate_public_url,
+    },
     error::ApiError,
-    material::{MaterialContentResponse, TargetFacts},
+    material::{
+        Diagnostics, DownloadCapability, ExtractionResult, MaterialContentResponse, Pagination,
+        TargetFacts,
+    },
     reader::client,
     sitemap::{
         SitemapRequest, SitemapResponse, SitemapSourceStatus, SitemapUrl, discover, same_origin,
@@ -25,6 +31,33 @@ pub async fn read(
     request: ContentRequest,
 ) -> Result<MaterialContentResponse, ApiError> {
     let url = request.validate()?;
+    let requested_kind = kind_for_url(&url);
+    if matches!(requested_kind, ResourceKind::Image | ResourceKind::Unknown) {
+        return Ok(MaterialContentResponse {
+            target: TargetFacts::new(
+                url.clone(),
+                url.clone(),
+                requested_kind,
+                target_content_type(&url, &kind_for_url(&url)),
+            ),
+            extraction: ExtractionResult::download_only(
+                "none",
+                "该资源不支持文本抽取，请通过 web_download 获取原文件",
+            ),
+            download: DownloadCapability { available: true },
+            pagination: Pagination {
+                offset: 0,
+                next_offset: None,
+                truncated: false,
+            },
+            diagnostics: Diagnostics {
+                upstream_status: None,
+                duration_ms: None,
+                timeout_seconds: None,
+                warnings: Vec::new(),
+            },
+        });
+    }
     let document = client::read(
         &state.http_client,
         &state.config.reader_base_url,

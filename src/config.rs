@@ -10,6 +10,7 @@ pub struct Config {
     pub reader_base_url: String,
     pub resource_timeout: Duration,
     pub reader_timeout: Duration,
+    pub mcp_allowed_hosts: Vec<String>,
 }
 
 #[derive(Debug, Error)]
@@ -29,6 +30,13 @@ impl Config {
                 .unwrap_or_else(|_| "http://reader:8081".to_owned()),
             resource_timeout: read_duration_env("RESOURCE_REQUEST_TIMEOUT_SECONDS", "20")?,
             reader_timeout: read_duration_env("READER_REQUEST_TIMEOUT_SECONDS", "60")?,
+            mcp_allowed_hosts: env::var("MCP_ALLOWED_HOSTS")
+                .unwrap_or_else(|_| "localhost,127.0.0.1,[::1]".to_owned())
+                .split(',')
+                .map(str::trim)
+                .filter(|value| !value.is_empty())
+                .map(str::to_owned)
+                .collect(),
         })
     }
 
@@ -40,6 +48,11 @@ impl Config {
             reader_base_url: "http://reader.test".to_owned(),
             resource_timeout: Duration::from_secs(20),
             reader_timeout: Duration::from_secs(60),
+            mcp_allowed_hosts: vec![
+                "localhost".to_owned(),
+                "127.0.0.1".to_owned(),
+                "[::1]".to_owned(),
+            ],
         }
     }
 }

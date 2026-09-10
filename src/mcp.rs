@@ -54,11 +54,12 @@ impl RefineryMcp {
 }
 
 pub fn http_service(state: AppState) -> StreamableHttpService<RefineryMcp, LocalSessionManager> {
+    let allowed_hosts = state.config.mcp_allowed_hosts.clone();
     StreamableHttpService::new(
         move || Ok(RefineryMcp::new(state.clone())),
         Arc::new(LocalSessionManager::default()),
         StreamableHttpServerConfig::default()
-            .with_allowed_hosts(["0.0.0.0", "localhost", "127.0.0.1"])
+            .with_allowed_hosts(allowed_hosts)
             .with_json_response(true),
     )
 }

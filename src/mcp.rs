@@ -8,8 +8,8 @@ use rmcp::{
     ServerHandler,
     handler::server::{router::tool::ToolRouter, wrapper::Parameters},
     model::{
-        CallToolResult, ReadResourceRequestParams, ReadResourceResponse, ReadResourceResult,
-        ResourceContents, ServerCapabilities, ServerInfo,
+        CallToolResult, Implementation, ReadResourceRequestParams, ReadResourceResponse,
+        ReadResourceResult, ResourceContents, ServerCapabilities, ServerInfo,
     },
     schemars::{self, JsonSchema},
     tool, tool_handler, tool_router,
@@ -158,6 +158,7 @@ impl ServerHandler for RefineryMcp {
         .with_instructions(
             "Refinery provides controlled public web search, reading, exploration, and downloads.",
         )
+        .with_server_info(Implementation::new("refinery", env!("CARGO_PKG_VERSION")))
     }
 
     async fn read_resource(

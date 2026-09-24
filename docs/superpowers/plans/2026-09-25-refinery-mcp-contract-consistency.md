@@ -1206,15 +1206,30 @@ async fn reachable(client: &reqwest::Client, base_url: &str) -> bool {
 }
 
 fn host_allowed(state: &AppState, headers: &HeaderMap) -> bool {
-    let Some(authority) = headers.get(header::HOST).and_then(|value| value.to_str().ok()) else {
+    if state.config.mcp_allowed_hosts.is_empty() {
+        return true;
+    }
+
+    let Some(raw) = headers.get(header::HOST).and_then(|value| value.to_str().ok()) else {
         return false;
     };
-    let authority = authority.trim().to_ascii_lowercase();
-    state
-        .config
-        .mcp_allowed_hosts
-        .iter()
-        .any(|allowed| allowed.trim().to_ascii_lowercase() == authority)
+    let Some((host, port)) = parse_authority(raw) else {
+        return false;
+    };
+    state.config.mcp_allowed_hosts.iter().any(|allowed| {
+        parse_authority(allowed).is_some_and(|(allowed_host, allowed_port)| {
+            allowed_host == host && (allowed_port.is_none() || allowed_port == port)
+        })
+    })
+}
+
+fn normalize_host(host: &str) -> String {
+    host.trim_matches(['[', ']']).to_ascii_lowercase()
+}
+
+fn parse_authority(raw: &str) -> Option<(String, Option<u16>)> {
+    let authority = axum::http::uri::Authority::try_from(raw.trim()).ok()?;
+    Some((normalize_host(authority.host()), authority.port_u16()))
 }
 
 pub async fn ready(
@@ -1250,7 +1265,7 @@ pub async fn ready(
 }
 ```
 
-`host_allowed` 只做大小写归一化比较，rmcp 内部还会处理默认端口等规范化；探针用于提前发现 09-24 那类域名未加入白名单的问题，不替代 rmcp 的校验。
+`host_allowed` 按 rmcp 的语义解析 authority：忽略大小写与 IPv6 方括号，允许项不带端口时匹配任意端口，白名单为空表示不校验；探针用于提前发现 09-24 那类域名未加入白名单的问题，不替代 rmcp 的校验。rmcp 若调整该校验语义，探针需要同步更新。
 
 `src/routes/mod.rs` 注册路由：
 

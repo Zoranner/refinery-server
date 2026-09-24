@@ -269,6 +269,13 @@ async fn web_read_projects_links_and_reports_stats() {
     let links = document["extraction"]["links"].as_array().unwrap();
     assert_eq!(links.len(), 1);
     assert_eq!(links[0]["url"], "https://example.com/report.pdf");
+    assert!(
+        document["extraction"]["markdown"]
+            .as_str()
+            .unwrap()
+            .contains("https://example.com/nav"),
+        "默认投影不改变 Markdown 内联链接: {document}"
+    );
     assert_eq!(document["stats"]["links_included"], 1);
     assert_eq!(document["stats"]["links_omitted"], 0);
     assert!(document["diagnostics"]["duration_ms"].is_number());

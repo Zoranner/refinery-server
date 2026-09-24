@@ -180,3 +180,37 @@ async fn invalid_arguments_stay_protocol_errors() {
     assert_eq!(payload["error"]["code"], -32602);
     assert!(payload.get("result").is_none(), "{payload}");
 }
+
+#[tokio::test]
+async fn tool_schemas_declare_parameter_ranges() {
+    let service = app();
+    let session = initialize_session(service.clone()).await;
+    let response = post(
+        service,
+        json!({"jsonrpc": "2.0", "id": 2, "method": "tools/list", "params": {}}),
+        Some(&session),
+    )
+    .await;
+    let listed = body(response).await;
+    let tools = listed["result"]["tools"].as_array().unwrap();
+    let schema_of = |name: &str| {
+        tools
+            .iter()
+            .find(|tool| tool["name"] == name)
+            .unwrap_or_else(|| panic!("missing tool {name}"))["inputSchema"]
+            .clone()
+    };
+
+    let read = schema_of("web_read");
+    assert_eq!(read["properties"]["max_chars"]["minimum"], 1000);
+    assert_eq!(read["properties"]["max_chars"]["maximum"], 24000);
+    assert_eq!(read["properties"]["max_chars"]["default"], 8000);
+
+    let search = schema_of("web_search");
+    assert_eq!(search["properties"]["limit"]["maximum"], 20);
+
+    let explore = schema_of("web_explore");
+    assert_eq!(explore["properties"]["limit"]["minimum"], 1);
+    assert_eq!(explore["properties"]["limit"]["maximum"], 500);
+    assert_eq!(explore["properties"]["limit"]["default"], 100);
+}

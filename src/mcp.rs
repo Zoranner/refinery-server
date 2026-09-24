@@ -27,9 +27,17 @@ pub struct RefineryMcp {
 
 #[derive(Debug, Deserialize, JsonSchema)]
 pub struct SearchInput {
+    /// 搜索关键词，不能为空。
     pub query: String,
-    pub page: Option<u32>,
-    pub limit: Option<u8>,
+    /// 页码，从 1 开始。
+    #[serde(default = "default_page")]
+    #[schemars(range(min = 1))]
+    pub page: u32,
+    /// 返回条数上限。
+    #[serde(default = "default_search_limit")]
+    #[schemars(range(min = 1, max = 20))]
+    pub limit: u8,
+    /// SearXNG 语言代码，例如 zh-CN。
     pub language: Option<String>,
 }
 
@@ -40,9 +48,45 @@ pub struct UrlInput {
 
 #[derive(Debug, Deserialize, JsonSchema)]
 pub struct ReadInput {
+    /// 目标公网 URL。
     pub url: String,
-    pub offset: Option<usize>,
-    pub max_chars: Option<usize>,
+    /// 已抽取正文中的起始字符位置，续读时使用上次响应的 next_offset。
+    #[serde(default = "default_offset")]
+    pub offset: usize,
+    /// 本次返回的正文最大字符数。
+    #[serde(default = "default_max_chars")]
+    #[schemars(range(min = 1000, max = 24000))]
+    pub max_chars: usize,
+}
+
+#[derive(Debug, Deserialize, JsonSchema)]
+pub struct ExploreInput {
+    /// 站点内任意 URL，服务只发现同源地址。
+    pub url: String,
+    /// 最多发现的 URL 数量。
+    #[serde(default = "default_explore_limit")]
+    #[schemars(range(min = 1, max = 500))]
+    pub limit: usize,
+}
+
+fn default_page() -> u32 {
+    1
+}
+
+fn default_search_limit() -> u8 {
+    10
+}
+
+fn default_offset() -> usize {
+    0
+}
+
+fn default_max_chars() -> usize {
+    8000
+}
+
+fn default_explore_limit() -> usize {
+    100
 }
 
 impl RefineryMcp {
@@ -74,8 +118,8 @@ impl RefineryMcp {
     ) -> Result<CallToolResult, rmcp::ErrorData> {
         let request = crate::search::SearchRequest {
             query: input.query,
-            page: input.page.unwrap_or(1),
-            limit: input.limit.unwrap_or(10),
+            page: input.page,
+            limit: input.limit,
             language: input.language,
         };
         let result = match crate::application::search(&self.state, request).await {
@@ -97,8 +141,8 @@ impl RefineryMcp {
     ) -> Result<CallToolResult, rmcp::ErrorData> {
         let request = crate::content::ContentRequest {
             url: input.url,
-            offset: input.offset.unwrap_or(0),
-            max_chars: input.max_chars.unwrap_or(12000),
+            offset: input.offset,
+            max_chars: input.max_chars,
         };
         let result = match crate::application::read(&self.state, request).await {
             Ok(result) => result,
@@ -115,11 +159,11 @@ impl RefineryMcp {
     )]
     async fn web_explore(
         &self,
-        Parameters(input): Parameters<UrlInput>,
+        Parameters(input): Parameters<ExploreInput>,
     ) -> Result<CallToolResult, rmcp::ErrorData> {
         let request = crate::sitemap::SitemapRequest {
             url: input.url,
-            limit: 100,
+            limit: input.limit,
         };
         let result = match crate::application::explore(&self.state, request).await {
             Ok(result) => result,

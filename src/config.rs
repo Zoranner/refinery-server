@@ -11,6 +11,7 @@ pub struct Config {
     pub resource_timeout: Duration,
     pub reader_timeout: Duration,
     pub mcp_allowed_hosts: Vec<String>,
+    pub mcp_allowed_origins: Vec<String>,
 }
 
 #[derive(Debug, Error)]
@@ -37,6 +38,7 @@ impl Config {
                 .filter(|value| !value.is_empty())
                 .map(str::to_owned)
                 .collect(),
+            mcp_allowed_origins: split_env_list("MCP_ALLOWED_ORIGINS"),
         })
     }
 
@@ -53,8 +55,19 @@ impl Config {
                 "127.0.0.1".to_owned(),
                 "[::1]".to_owned(),
             ],
+            mcp_allowed_origins: Vec::new(),
         }
     }
+}
+
+fn split_env_list(name: &str) -> Vec<String> {
+    env::var(name)
+        .unwrap_or_default()
+        .split(',')
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(str::to_owned)
+        .collect()
 }
 
 fn read_env<T>(
@@ -90,6 +103,7 @@ mod tests {
             std::env::set_var("READER_BASE_URL", "http://reader.test:8081");
             std::env::set_var("RESOURCE_REQUEST_TIMEOUT_SECONDS", "7");
             std::env::set_var("READER_REQUEST_TIMEOUT_SECONDS", "60");
+            std::env::set_var("MCP_ALLOWED_ORIGINS", "https://search.example.com");
         }
 
         let config = Config::from_env().expect("explicit environment is valid");
@@ -100,6 +114,10 @@ mod tests {
         assert_eq!(config.reader_base_url, "http://reader.test:8081");
         assert_eq!(config.resource_timeout, std::time::Duration::from_secs(7));
         assert_eq!(config.reader_timeout, std::time::Duration::from_secs(60));
+        assert_eq!(
+            config.mcp_allowed_origins,
+            ["https://search.example.com".to_owned()]
+        );
 
         unsafe {
             std::env::remove_var("HTTP_LISTEN_ADDRESS");
@@ -108,6 +126,7 @@ mod tests {
             std::env::remove_var("READER_BASE_URL");
             std::env::remove_var("RESOURCE_REQUEST_TIMEOUT_SECONDS");
             std::env::remove_var("READER_REQUEST_TIMEOUT_SECONDS");
+            std::env::remove_var("MCP_ALLOWED_ORIGINS");
         }
     }
 }

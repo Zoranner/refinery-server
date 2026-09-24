@@ -27,7 +27,7 @@ pub trait ResourceFetcher: Send + Sync {
     async fn get_with_timeout(&self, url: &Url, timeout: Duration) -> Result<Resource, ApiError> {
         tokio::time::timeout(timeout, self.get(url))
             .await
-            .map_err(|_| ApiError::fetch_timeout())?
+            .map_err(|_| ApiError::upstream_timeout().with_stage("resource"))?
     }
 }
 
@@ -65,6 +65,7 @@ impl ResourceFetcher for HttpResourceFetcher {
         self.get_diagnosed(url)
             .await
             .map_err(DownloadError::into_api_error)
+            .map_err(|error| error.with_stage("resource"))
     }
 }
 
@@ -95,7 +96,7 @@ impl HttpResourceFetcher {
                 if redirects == MAX_REDIRECTS {
                     return Err(DownloadError::new(
                         DownloadStage::Redirect,
-                        ApiError::fetch_failed(),
+                        ApiError::upstream_unavailable(),
                     ));
                 }
 
@@ -104,13 +105,19 @@ impl HttpResourceFetcher {
                     .get(reqwest::header::LOCATION)
                     .and_then(|value| value.to_str().ok())
                     .ok_or_else(|| {
-                        DownloadError::new(DownloadStage::Redirect, ApiError::fetch_failed())
+                        DownloadError::new(
+                            DownloadStage::Redirect,
+                            ApiError::upstream_unavailable(),
+                        )
                     })?;
                 current = validate_public_url(
                     current
                         .join(location)
                         .map_err(|_| {
-                            DownloadError::new(DownloadStage::Redirect, ApiError::fetch_failed())
+                            DownloadError::new(
+                                DownloadStage::Redirect,
+                                ApiError::upstream_unavailable(),
+                            )
                         })?
                         .as_str(),
                 )
@@ -121,7 +128,7 @@ impl HttpResourceFetcher {
             if !response.status().is_success() {
                 return Err(DownloadError::new(
                     DownloadStage::Connect,
-                    ApiError::fetch_failed(),
+                    ApiError::upstream_unavailable(),
                 ));
             }
 
@@ -154,7 +161,7 @@ impl HttpResourceFetcher {
 
         Err(DownloadError::new(
             DownloadStage::Redirect,
-            ApiError::fetch_failed(),
+            ApiError::upstream_unavailable(),
         ))
     }
 }
@@ -175,8 +182,8 @@ async fn read_limited(mut response: reqwest::Response) -> Result<Vec<u8>, ApiErr
 
 fn map_error(error: reqwest::Error) -> ApiError {
     if error.is_timeout() {
-        ApiError::fetch_timeout()
+        ApiError::upstream_timeout()
     } else {
-        ApiError::fetch_failed()
+        ApiError::upstream_unavailable()
     }
 }

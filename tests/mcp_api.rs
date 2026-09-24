@@ -103,3 +103,80 @@ async fn business_http_routes_are_not_exposed() {
         .unwrap();
     assert_eq!(response.status(), StatusCode::NOT_FOUND);
 }
+
+fn app_with_unreachable_search() -> axum::Router {
+    let mut config = refinery::config::Config::for_test();
+    config.searxng_base_url = "http://127.0.0.1:9".to_owned();
+    refinery::routes::router(refinery::state::AppState::new(config))
+}
+
+async fn initialize_session(service: axum::Router) -> String {
+    let response = post(
+        service,
+        json!({
+            "jsonrpc": "2.0", "id": 1, "method": "initialize",
+            "params": {
+                "protocolVersion": "2025-03-26",
+                "capabilities": {},
+                "clientInfo": {"name": "test", "version": "1"}
+            }
+        }),
+        None,
+    )
+    .await;
+    assert_eq!(response.status(), StatusCode::OK);
+    response.headers()["mcp-session-id"]
+        .to_str()
+        .unwrap()
+        .to_owned()
+}
+
+#[tokio::test]
+async fn upstream_failure_returns_tool_level_error() {
+    let service = app_with_unreachable_search();
+    let session = initialize_session(service.clone()).await;
+    let response = post(
+        service,
+        json!({
+            "jsonrpc": "2.0", "id": 2, "method": "tools/call",
+            "params": {"name": "web_search", "arguments": {"query": "test"}}
+        }),
+        Some(&session),
+    )
+    .await;
+    assert_eq!(response.status(), StatusCode::OK);
+    let payload = body(response).await;
+    assert!(
+        payload.get("error").is_none(),
+        "上游失败是工具执行失败，不是协议错误: {payload}"
+    );
+    let result = &payload["result"];
+    assert_eq!(result["isError"], true);
+    assert_eq!(
+        result["structuredContent"]["error"]["code"],
+        "upstream_unavailable"
+    );
+    assert_eq!(result["structuredContent"]["error"]["stage"], "search");
+    assert_eq!(result["structuredContent"]["error"]["retryable"], true);
+}
+
+#[tokio::test]
+async fn invalid_arguments_stay_protocol_errors() {
+    let service = app();
+    let session = initialize_session(service.clone()).await;
+    let response = post(
+        service,
+        json!({
+            "jsonrpc": "2.0", "id": 2, "method": "tools/call",
+            "params": {
+                "name": "web_read",
+                "arguments": {"url": "https://example.com/", "max_chars": 900}
+            }
+        }),
+        Some(&session),
+    )
+    .await;
+    let payload = body(response).await;
+    assert_eq!(payload["error"]["code"], -32602);
+    assert!(payload.get("result").is_none(), "{payload}");
+}

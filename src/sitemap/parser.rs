@@ -22,12 +22,13 @@ pub fn robots_sitemaps(robots: &str) -> Vec<Url> {
 pub fn parse(xml: &str) -> Result<Document, ApiError> {
     if xml.contains("<sitemapindex") {
         let index: SitemapIndex =
-            quick_xml::de::from_str(xml).map_err(|_| ApiError::fetch_failed())?;
+            quick_xml::de::from_str(xml).map_err(|_| ApiError::upstream_unavailable())?;
         Ok(Document::Index(
             index.entries.into_iter().filter_map(parse_loc).collect(),
         ))
     } else {
-        let set: UrlSet = quick_xml::de::from_str(xml).map_err(|_| ApiError::fetch_failed())?;
+        let set: UrlSet =
+            quick_xml::de::from_str(xml).map_err(|_| ApiError::upstream_unavailable())?;
         Ok(Document::UrlSet(
             set.entries.into_iter().filter_map(parse_loc).collect(),
         ))

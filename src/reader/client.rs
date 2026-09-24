@@ -20,6 +20,17 @@ pub async fn read(
     url: &Url,
     timeout: Duration,
 ) -> Result<ReaderDocument, ApiError> {
+    read_inner(client, base_url, url, timeout)
+        .await
+        .map_err(|error| error.with_stage("read"))
+}
+
+async fn read_inner(
+    client: &reqwest::Client,
+    base_url: &str,
+    url: &Url,
+    timeout: Duration,
+) -> Result<ReaderDocument, ApiError> {
     let endpoint = format!("{}/", base_url.trim_end_matches('/'));
     let response = client
         .post(endpoint)
@@ -36,7 +47,8 @@ pub async fn read(
         .map_err(map_request_error)?;
 
     if !response.status().is_success() {
-        return Err(ApiError::fetch_failed());
+        return Err(ApiError::upstream_unavailable()
+            .with_message(format!("reader returned status {}", response.status())));
     }
 
     if response
@@ -48,7 +60,7 @@ pub async fn read(
 
     let headers = response.headers().clone();
     let bytes = read_limited(response).await?;
-    let markdown = String::from_utf8(bytes).map_err(|_| ApiError::fetch_failed())?;
+    let markdown = String::from_utf8(bytes).map_err(|_| ApiError::upstream_unavailable())?;
 
     Ok(ReaderDocument {
         final_url: responded_url(&headers).unwrap_or_else(|| url.clone()),
@@ -88,9 +100,9 @@ fn responded_url(headers: &HeaderMap) -> Option<Url> {
 
 fn map_request_error(error: reqwest::Error) -> ApiError {
     if error.is_timeout() {
-        ApiError::fetch_timeout()
+        ApiError::upstream_timeout()
     } else {
-        ApiError::fetch_failed()
+        ApiError::upstream_unavailable()
     }
 }
 

@@ -78,13 +78,13 @@ impl RefineryMcp {
             limit: input.limit.unwrap_or(10),
             language: input.language,
         };
-        let result = crate::application::search(&self.state, request)
-            .await
-            .map_err(error)?;
-        Ok(CallToolResult::structured(
-            serde_json::to_value(result)
-                .map_err(|e| rmcp::ErrorData::internal_error(e.to_string(), None))?,
-        ))
+        let result = match crate::application::search(&self.state, request).await {
+            Ok(result) => result,
+            Err(error) => return fail(error),
+        };
+        let value = serde_json::to_value(result)
+            .map_err(|error| rmcp::ErrorData::internal_error(error.to_string(), None))?;
+        Ok(payload(value))
     }
 
     #[tool(
@@ -100,13 +100,13 @@ impl RefineryMcp {
             offset: input.offset.unwrap_or(0),
             max_chars: input.max_chars.unwrap_or(12000),
         };
-        let result = crate::application::read(&self.state, request)
-            .await
-            .map_err(error)?;
-        Ok(CallToolResult::structured(
-            serde_json::to_value(result)
-                .map_err(|e| rmcp::ErrorData::internal_error(e.to_string(), None))?,
-        ))
+        let result = match crate::application::read(&self.state, request).await {
+            Ok(result) => result,
+            Err(error) => return fail(error),
+        };
+        let value = serde_json::to_value(result)
+            .map_err(|error| rmcp::ErrorData::internal_error(error.to_string(), None))?;
+        Ok(payload(value))
     }
 
     #[tool(
@@ -121,13 +121,13 @@ impl RefineryMcp {
             url: input.url,
             limit: 100,
         };
-        let result = crate::application::explore(&self.state, request)
-            .await
-            .map_err(error)?;
-        Ok(CallToolResult::structured(
-            serde_json::to_value(result)
-                .map_err(|e| rmcp::ErrorData::internal_error(e.to_string(), None))?,
-        ))
+        let result = match crate::application::explore(&self.state, request).await {
+            Ok(result) => result,
+            Err(error) => return fail(error),
+        };
+        let value = serde_json::to_value(result)
+            .map_err(|error| rmcp::ErrorData::internal_error(error.to_string(), None))?;
+        Ok(payload(value))
     }
 
     #[tool(
@@ -138,7 +138,10 @@ impl RefineryMcp {
         &self,
         Parameters(input): Parameters<UrlInput>,
     ) -> Result<CallToolResult, rmcp::ErrorData> {
-        let url = crate::application::validate_download(&input.url).map_err(error)?;
+        let url = match crate::application::validate_download(&input.url) {
+            Ok(url) => url,
+            Err(error) => return fail(error),
+        };
         let uri = format!(
             "refinery://resource/{}",
             url::form_urlencoded::byte_serialize(url.as_str().as_bytes()).collect::<String>()
@@ -177,13 +180,13 @@ impl ServerHandler for RefineryMcp {
         let raw: String = url::form_urlencoded::parse(encoded.as_bytes())
             .map(|(key, value)| if key.is_empty() { value } else { key })
             .collect();
-        let url = crate::content::validate_public_url(&raw).map_err(error)?;
+        let url = crate::content::validate_public_url(&raw).map_err(resource_error)?;
         let resource = self
             .state
             .resource_fetcher
             .get_with_timeout(&url, self.state.config.resource_timeout)
             .await
-            .map_err(error)?;
+            .map_err(resource_error)?;
         let blob = {
             use base64::Engine;
             base64::engine::general_purpose::STANDARD.encode(resource.bytes)
@@ -194,6 +197,29 @@ impl ServerHandler for RefineryMcp {
     }
 }
 
-fn error(error: crate::error::ApiError) -> rmcp::ErrorData {
-    rmcp::ErrorData::invalid_params(error.message, None)
+fn payload(value: serde_json::Value) -> CallToolResult {
+    CallToolResult::success(vec![ContentBlock::text(value.to_string())])
+}
+
+fn fail(error: crate::error::ApiError) -> Result<CallToolResult, rmcp::ErrorData> {
+    if error.is_protocol_error() {
+        return Err(rmcp::ErrorData::invalid_params(error.message, None));
+    }
+
+    Ok(CallToolResult::structured_error(serde_json::json!({
+        "error": {
+            "code": error.code,
+            "message": error.message,
+            "stage": error.stage,
+            "retryable": error.retryable,
+        }
+    })))
+}
+
+fn resource_error(error: crate::error::ApiError) -> rmcp::ErrorData {
+    if error.is_protocol_error() || error.code == "blocked_target" {
+        return rmcp::ErrorData::invalid_params(error.message, None);
+    }
+
+    rmcp::ErrorData::internal_error(error.message, None)
 }

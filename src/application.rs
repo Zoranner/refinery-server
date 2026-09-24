@@ -93,8 +93,8 @@ pub async fn explore(
         .await;
         match document {
             Ok(document) => {
-                let site_url =
-                    url::Url::parse(&response.site_url).map_err(|_| ApiError::fetch_failed())?;
+                let site_url = url::Url::parse(&response.site_url)
+                    .map_err(|_| ApiError::upstream_unavailable().with_stage("explore"))?;
                 let mut discovered = false;
                 for link in links::collect(&document.markdown, &document.final_url) {
                     let Ok(candidate) = validate_public_url(&link.url) else {
@@ -119,7 +119,7 @@ pub async fn explore(
                 };
             }
             Err(error) => {
-                response.sources.page_links = if error.code == "fetch_timeout" {
+                response.sources.page_links = if error.code == "upstream_timeout" {
                     SitemapSourceStatus::TimedOut
                 } else {
                     SitemapSourceStatus::Failed

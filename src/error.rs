@@ -1,3 +1,5 @@
+use std::borrow::Cow;
+
 use axum::{
     Json,
     http::StatusCode,
@@ -9,56 +11,90 @@ use serde::Serialize;
 pub struct ApiError {
     pub status: StatusCode,
     pub code: &'static str,
-    pub message: &'static str,
+    pub message: Cow<'static, str>,
+    pub stage: &'static str,
+    pub retryable: bool,
 }
 
 impl ApiError {
-    pub const fn invalid_request(message: &'static str) -> Self {
+    pub fn new(
+        status: StatusCode,
+        code: &'static str,
+        message: impl Into<Cow<'static, str>>,
+        stage: &'static str,
+        retryable: bool,
+    ) -> Self {
         Self {
-            status: StatusCode::BAD_REQUEST,
-            code: "invalid_request",
+            status,
+            code,
+            message: message.into(),
+            stage,
+            retryable,
+        }
+    }
+
+    pub fn invalid_request(message: impl Into<Cow<'static, str>>) -> Self {
+        Self::new(
+            StatusCode::BAD_REQUEST,
+            "invalid_request",
             message,
-        }
+            "request",
+            false,
+        )
     }
 
-    pub const fn search_upstream_failed() -> Self {
-        Self {
-            status: StatusCode::BAD_GATEWAY,
-            code: "search_upstream_failed",
-            message: "search upstream is unavailable",
-        }
+    pub fn upstream_unavailable() -> Self {
+        Self::new(
+            StatusCode::BAD_GATEWAY,
+            "upstream_unavailable",
+            "upstream is unavailable",
+            "upstream",
+            true,
+        )
     }
 
-    pub const fn blocked_target() -> Self {
-        Self {
-            status: StatusCode::FORBIDDEN,
-            code: "blocked_target",
-            message: "target address is not allowed",
-        }
+    pub fn upstream_timeout() -> Self {
+        Self::new(
+            StatusCode::GATEWAY_TIMEOUT,
+            "upstream_timeout",
+            "upstream timed out",
+            "upstream",
+            true,
+        )
     }
 
-    pub const fn fetch_failed() -> Self {
-        Self {
-            status: StatusCode::BAD_GATEWAY,
-            code: "fetch_failed",
-            message: "content upstream is unavailable",
-        }
+    pub fn blocked_target() -> Self {
+        Self::new(
+            StatusCode::FORBIDDEN,
+            "blocked_target",
+            "target address is not allowed",
+            "policy",
+            false,
+        )
     }
 
-    pub const fn fetch_timeout() -> Self {
-        Self {
-            status: StatusCode::GATEWAY_TIMEOUT,
-            code: "fetch_timeout",
-            message: "content upstream timed out",
-        }
+    pub fn response_too_large() -> Self {
+        Self::new(
+            StatusCode::PAYLOAD_TOO_LARGE,
+            "response_too_large",
+            "content response is too large",
+            "upstream",
+            false,
+        )
     }
 
-    pub const fn response_too_large() -> Self {
-        Self {
-            status: StatusCode::PAYLOAD_TOO_LARGE,
-            code: "response_too_large",
-            message: "content response is too large",
-        }
+    pub fn with_message(mut self, message: impl Into<Cow<'static, str>>) -> Self {
+        self.message = message.into();
+        self
+    }
+
+    pub fn with_stage(mut self, stage: &'static str) -> Self {
+        self.stage = stage;
+        self
+    }
+
+    pub fn is_protocol_error(&self) -> bool {
+        self.code == "invalid_request"
     }
 }
 
@@ -85,5 +121,5 @@ struct ErrorResponse {
 #[derive(Serialize)]
 struct ErrorBody {
     code: &'static str,
-    message: &'static str,
+    message: Cow<'static, str>,
 }

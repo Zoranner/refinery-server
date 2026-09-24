@@ -27,7 +27,7 @@ impl DownloadError {
     }
 
     pub(crate) fn timeout(stage: DownloadStage) -> Self {
-        Self::new(stage, ApiError::fetch_timeout())
+        Self::new(stage, ApiError::upstream_timeout())
     }
 }
 

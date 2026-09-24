@@ -39,6 +39,14 @@ impl Default for HttpSitemapFetcher {
 #[async_trait]
 impl SitemapFetcher for HttpSitemapFetcher {
     async fn get(&self, url: &Url) -> Result<String, ApiError> {
+        self.get_inner(url)
+            .await
+            .map_err(|error| error.with_stage("sitemap"))
+    }
+}
+
+impl HttpSitemapFetcher {
+    async fn get_inner(&self, url: &Url) -> Result<String, ApiError> {
         let mut current = validate_public_url(url.as_str())?;
 
         for redirects in 0..=MAX_REDIRECTS {
@@ -52,25 +60,25 @@ impl SitemapFetcher for HttpSitemapFetcher {
 
             if response.status().is_redirection() {
                 if redirects == MAX_REDIRECTS {
-                    return Err(ApiError::fetch_failed());
+                    return Err(ApiError::upstream_unavailable());
                 }
 
                 let location = response
                     .headers()
                     .get(reqwest::header::LOCATION)
                     .and_then(|value| value.to_str().ok())
-                    .ok_or_else(ApiError::fetch_failed)?;
+                    .ok_or_else(ApiError::upstream_unavailable)?;
                 current = validate_public_url(
                     current
                         .join(location)
-                        .map_err(|_| ApiError::fetch_failed())?
+                        .map_err(|_| ApiError::upstream_unavailable())?
                         .as_str(),
                 )?;
                 continue;
             }
 
             if !response.status().is_success() {
-                return Err(ApiError::fetch_failed());
+                return Err(ApiError::upstream_unavailable());
             }
 
             if response
@@ -81,19 +89,19 @@ impl SitemapFetcher for HttpSitemapFetcher {
             }
 
             let bytes = read_limited(response).await?;
-            return String::from_utf8(bytes).map_err(|_| ApiError::fetch_failed());
+            return String::from_utf8(bytes).map_err(|_| ApiError::upstream_unavailable());
         }
 
-        Err(ApiError::fetch_failed())
+        Err(ApiError::upstream_unavailable())
     }
 }
 
 pub async fn ensure_public_dns(url: &Url) -> Result<(), ApiError> {
     let port = url
         .port_or_known_default()
-        .ok_or_else(ApiError::fetch_failed)?;
+        .ok_or_else(ApiError::upstream_unavailable)?;
 
-    match url.host().ok_or_else(ApiError::fetch_failed)? {
+    match url.host().ok_or_else(ApiError::upstream_unavailable)? {
         Host::Ipv4(address) if !is_public_ipv4(address) => Err(ApiError::blocked_target()),
         Host::Ipv6(address) if !is_public_ipv6(address) => Err(ApiError::blocked_target()),
         Host::Ipv4(_) | Host::Ipv6(_) => Ok(()),
@@ -104,7 +112,7 @@ pub async fn ensure_public_dns(url: &Url) -> Result<(), ApiError> {
 async fn ensure_public_domain(domain: &str, port: u16) -> Result<(), ApiError> {
     let addresses = tokio::net::lookup_host((domain, port))
         .await
-        .map_err(|_| ApiError::fetch_failed())?;
+        .map_err(|_| ApiError::upstream_unavailable())?;
     let mut found = false;
 
     for address in addresses {
@@ -117,7 +125,9 @@ async fn ensure_public_domain(domain: &str, port: u16) -> Result<(), ApiError> {
         }
     }
 
-    found.then_some(()).ok_or_else(ApiError::fetch_failed)
+    found
+        .then_some(())
+        .ok_or_else(ApiError::upstream_unavailable)
 }
 
 async fn read_limited(mut response: reqwest::Response) -> Result<Vec<u8>, ApiError> {
@@ -136,9 +146,9 @@ async fn read_limited(mut response: reqwest::Response) -> Result<Vec<u8>, ApiErr
 
 fn map_error(error: reqwest::Error) -> ApiError {
     if error.is_timeout() {
-        ApiError::fetch_timeout()
+        ApiError::upstream_timeout()
     } else {
-        ApiError::fetch_failed()
+        ApiError::upstream_unavailable()
     }
 }
 

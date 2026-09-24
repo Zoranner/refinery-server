@@ -65,7 +65,7 @@ pub async fn discover(
     let site_url = site_root(&requested_url)?;
     let robots_url = site_url
         .join("robots.txt")
-        .map_err(|_| ApiError::fetch_failed())?;
+        .map_err(|_| ApiError::upstream_unavailable())?;
     let mut warnings = Vec::new();
     let mut robots_source = SourceTracker::default();
     let robots_sitemaps = match fetcher.get(&robots_url).await {
@@ -88,7 +88,7 @@ pub async fn discover(
         documents.push_back(
             site_url
                 .join("sitemap.xml")
-                .map_err(|_| ApiError::fetch_failed())?,
+                .map_err(|_| ApiError::upstream_unavailable())?,
         );
     }
 
@@ -209,7 +209,7 @@ impl SourceTracker {
         warnings: &mut Vec<SitemapWarning>,
     ) {
         self.attempted = true;
-        if error.code == "fetch_timeout" {
+        if error.code == "upstream_timeout" {
             self.timed_out = true;
             self.status = SitemapSourceStatus::TimedOut;
             push_warning(warnings, source, "source_timeout");

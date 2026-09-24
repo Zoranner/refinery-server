@@ -47,6 +47,6 @@ localhost,127.0.0.1,[::1]
 
 `deploy/` 只提供部署模板，不是实际部署目录。模板编排 Refinery、SearXNG 和 Reader，使用外部 Docker 网络 `refinery`，只向内网发布 Refinery 的 `18090:8080`；SearXNG 和 Reader 不发布宿主机端口。实际部署应将模板复制到独立目录，在该目录准备 `.env`，并按 [deploy/README.md](deploy/README.md) 操作。
 
-模板固定的 `ghcr.io/zoranner/refinery:0.3.0` 是本版 MCP-only 发布镜像。`0.2.0` 及更早的镜像是旧 HTTP 接口，不能按本文的调用方式使用。离线或本地试用时，将 Compose 中的 `image` 替换为实际导入或构建的 tag；本文不执行构建或部署。
+模板固定的 `ghcr.io/zoranner/refinery:0.2.0` 是本版 MCP-only 发布镜像。`0.1.x` 及更早的镜像是旧 HTTP 接口，不能按本文的调用方式使用。离线或本地试用时，将 Compose 中的 `image` 替换为实际导入或构建的 tag；本文不执行构建或部署。
 
 发布工作流负责 tag 与 Cargo 版本校验、Rust 门禁、多架构 GHCR 镜像、离线 tar、SHA-256 和 GitHub Release。工作流只创建镜像和 Release，不部署服务。正式部署前仍需在目标环境验收 MCP `/mcp` 调用、`/health`、Reader 固定镜像的 HTML/PDF、重定向、SSRF、超大响应、错误和超时，以及 SearXNG 与实际网络出站策略。当前文档不把这些边界写成已通过验证或生产可用。

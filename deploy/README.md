@@ -20,7 +20,7 @@ GET  /health
 
 - 目标环境已按实际网络完成 Reader 固定镜像的 HTML、PDF、重定向、SSRF、超大响应、错误和超时验收。
 - 出站网络策略阻断 Reader 访问回环、私有、链路本地、保留和云元数据地址。
-- Refinery 镜像使用模板固定的 `ghcr.io/zoranner/refinery:0.3.0`，或独立部署目录中导入/构建的同版本 tag；`0.2.0` 及更早的镜像是旧 HTTP 接口，不是 MCP 版本。
+- Refinery 镜像使用模板固定的 `ghcr.io/zoranner/refinery:0.2.0`，或独立部署目录中导入/构建的同版本 tag；`0.1.x` 及更早的镜像是旧 HTTP 接口，不是 MCP 版本。
 
 仓库模板本身不执行构建或部署。当前模板端口为：
 

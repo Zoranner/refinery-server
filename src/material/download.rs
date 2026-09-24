@@ -52,10 +52,7 @@ mod tests {
     #[tokio::test]
     async fn timeout_keeps_the_download_stage_for_internal_diagnostics() {
         let error = within_budget(
-            async {
-                tokio::time::sleep(Duration::from_millis(20)).await;
-                Ok::<_, super::DownloadError>(())
-            },
+            std::future::pending::<Result<(), super::DownloadError>>(),
             Duration::from_millis(1),
             DownloadStage::Body,
         )

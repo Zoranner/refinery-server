@@ -13,6 +13,8 @@ pub struct ContentRequest {
     pub offset: usize,
     #[serde(default = "default_max_chars")]
     pub max_chars: usize,
+    #[serde(default)]
+    pub links: links::LinkProjection,
 }
 
 #[derive(Debug, Serialize, PartialEq, Eq)]
@@ -37,7 +39,7 @@ impl ContentRequest {
 }
 
 fn default_max_chars() -> usize {
-    12000
+    8000
 }
 
 pub fn kind_for_url(url: &Url) -> ResourceKind {

@@ -12,6 +12,7 @@ pub struct ReaderDocument {
     pub final_url: Url,
     pub content_type: String,
     pub markdown: String,
+    pub duration_ms: u64,
 }
 
 pub async fn read(
@@ -31,6 +32,7 @@ async fn read_inner(
     url: &Url,
     timeout: Duration,
 ) -> Result<ReaderDocument, ApiError> {
+    let started = std::time::Instant::now();
     let endpoint = format!("{}/", base_url.trim_end_matches('/'));
     let response = client
         .post(endpoint)
@@ -70,6 +72,7 @@ async fn read_inner(
             .unwrap_or("text/markdown")
             .to_owned(),
         markdown,
+        duration_ms: started.elapsed().as_millis() as u64,
     })
 }
 

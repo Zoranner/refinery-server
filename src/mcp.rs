@@ -57,6 +57,9 @@ pub struct ReadInput {
     #[serde(default = "default_max_chars")]
     #[schemars(range(min = 1000, max = 24000))]
     pub max_chars: usize,
+    /// 链接投影模式：resources 只返回资源型链接，all 返回全部链接。
+    #[serde(default)]
+    pub links: crate::content::links::LinkProjection,
 }
 
 #[derive(Debug, Deserialize, JsonSchema)]
@@ -143,6 +146,7 @@ impl RefineryMcp {
             url: input.url,
             offset: input.offset,
             max_chars: input.max_chars,
+            links: input.links,
         };
         let result = match crate::application::read(&self.state, request).await {
             Ok(result) => result,

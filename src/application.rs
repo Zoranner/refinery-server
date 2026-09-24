@@ -56,6 +56,11 @@ pub async fn read(
                 timeout_seconds: None,
                 warnings: Vec::new(),
             },
+            stats: crate::material::OutputStats {
+                markdown_chars: 0,
+                links_included: 0,
+                links_omitted: 0,
+            },
         });
     }
     let document = client::read(
@@ -67,13 +72,17 @@ pub async fn read(
     .await?;
     let kind = kind_for_response(&document.final_url, &document.content_type);
     let target = TargetFacts::new(url, document.final_url, kind, document.content_type.clone());
-    Ok(crate::material::normalize_reader_result_with_options(
+    let mut response = crate::material::normalize_reader_result_with_options(
         target,
         document.markdown,
         document.content_type,
         request.offset,
         request.max_chars,
-    ))
+        request.links,
+    );
+    response.diagnostics.duration_ms = Some(document.duration_ms);
+    response.diagnostics.timeout_seconds = Some(state.config.reader_timeout.as_secs());
+    Ok(response)
 }
 
 pub async fn explore(

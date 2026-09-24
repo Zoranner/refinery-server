@@ -101,10 +101,21 @@ pub struct DownloadCapability {
 
 #[derive(Debug, Serialize)]
 pub struct Diagnostics {
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub upstream_status: Option<u16>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub duration_ms: Option<u64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub timeout_seconds: Option<u64>,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
     pub warnings: Vec<String>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct OutputStats {
+    pub markdown_chars: usize,
+    pub links_included: usize,
+    pub links_omitted: usize,
 }
 
 #[derive(Debug, Serialize)]
@@ -121,4 +132,5 @@ pub struct MaterialContentResponse {
     pub download: DownloadCapability,
     pub pagination: Pagination,
     pub diagnostics: Diagnostics,
+    pub stats: OutputStats,
 }

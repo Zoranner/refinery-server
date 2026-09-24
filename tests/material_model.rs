@@ -54,6 +54,11 @@ fn material_response_supports_capabilities_pagination_diagnostics_and_json_seria
             timeout_seconds: Some(60),
             warnings: vec!["内容来自 Reader".to_owned()],
         },
+        stats: refinery::material::OutputStats {
+            markdown_chars: 0,
+            links_included: 0,
+            links_omitted: 0,
+        },
     };
 
     let json = serde_json::to_value(&response).unwrap();
@@ -98,6 +103,11 @@ fn material_response_serializes_reader_media_type_separately_from_pdf_target() {
             duration_ms: None,
             timeout_seconds: Some(60),
             warnings: Vec::new(),
+        },
+        stats: refinery::material::OutputStats {
+            markdown_chars: 0,
+            links_included: 0,
+            links_omitted: 0,
         },
     };
 

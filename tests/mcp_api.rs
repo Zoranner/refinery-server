@@ -214,3 +214,63 @@ async fn tool_schemas_declare_parameter_ranges() {
     assert_eq!(explore["properties"]["limit"]["maximum"], 500);
     assert_eq!(explore["properties"]["limit"]["default"], 100);
 }
+
+async fn stub_reader(markdown: &'static str) -> String {
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let address = listener.local_addr().unwrap();
+    tokio::spawn(async move {
+        loop {
+            let Ok((mut stream, _)) = listener.accept().await else {
+                return;
+            };
+            tokio::spawn(async move {
+                use tokio::io::{AsyncReadExt, AsyncWriteExt};
+                let mut buffer = [0_u8; 2048];
+                let _ = stream.read(&mut buffer).await;
+                let response = format!(
+                    "HTTP/1.1 200 OK\r\ncontent-type: text/plain; charset=utf-8\r\ncontent-length: {}\r\nconnection: close\r\n\r\n{}",
+                    markdown.len(),
+                    markdown
+                );
+                let _ = stream.write_all(response.as_bytes()).await;
+            });
+        }
+    });
+    format!("http://{address}")
+}
+
+#[tokio::test]
+async fn web_read_projects_links_and_reports_stats() {
+    let reader = stub_reader(
+        "# 标题\n\n[导航](https://example.com/nav)\n[手册](https://example.com/report.pdf)\n",
+    )
+    .await;
+    let mut config = refinery::config::Config::for_test();
+    config.reader_base_url = reader;
+    let service = refinery::routes::router(refinery::state::AppState::new(config));
+    let session = initialize_session(service.clone()).await;
+    let response = post(
+        service,
+        json!({
+            "jsonrpc": "2.0", "id": 2, "method": "tools/call",
+            "params": {"name": "web_read", "arguments": {"url": "https://example.com/page"}}
+        }),
+        Some(&session),
+    )
+    .await;
+    let payload = body(response).await;
+    assert_eq!(payload["result"]["isError"], false);
+    assert!(
+        payload["result"].get("structuredContent").is_none(),
+        "成功结果只返回一份载荷: {payload}"
+    );
+    let text = payload["result"]["content"][0]["text"].as_str().unwrap();
+    let document: Value = serde_json::from_str(text).unwrap();
+    let links = document["extraction"]["links"].as_array().unwrap();
+    assert_eq!(links.len(), 1);
+    assert_eq!(links[0]["url"], "https://example.com/report.pdf");
+    assert_eq!(document["stats"]["links_included"], 1);
+    assert_eq!(document["stats"]["links_omitted"], 0);
+    assert!(document["diagnostics"]["duration_ms"].is_number());
+    assert!(document["diagnostics"]["timeout_seconds"].is_number());
+}

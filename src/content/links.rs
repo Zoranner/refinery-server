@@ -1,12 +1,31 @@
+use std::collections::HashSet;
+
 use pulldown_cmark::{Event, Parser, Tag, TagEnd};
-use serde::Serialize;
+use rmcp::schemars::{self, JsonSchema};
+use serde::{Deserialize, Serialize};
 use url::Url;
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Deserialize, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum LinkProjection {
+    /// 只返回 PDF、图片和未知附件，页面链接由 Markdown 内联表达。
+    #[default]
+    Resources,
+    /// 返回当前分段中的全部链接。
+    All,
+}
 
 #[derive(Debug, Serialize)]
 pub struct Link {
     pub text: String,
     pub url: String,
     pub kind: LinkKind,
+}
+
+impl Link {
+    pub fn is_resource(&self) -> bool {
+        !matches!(self.kind, LinkKind::Html)
+    }
 }
 
 #[derive(Debug, Serialize)]
@@ -20,6 +39,7 @@ pub enum LinkKind {
 
 pub fn collect(markdown: &str, base_url: &Url) -> Vec<Link> {
     let mut links = Vec::new();
+    let mut seen = HashSet::new();
     let mut current: Option<(String, String)> = None;
 
     for event in Parser::new(markdown) {
@@ -34,7 +54,8 @@ pub fn collect(markdown: &str, base_url: &Url) -> Vec<Link> {
             }
             Event::End(TagEnd::Link)
                 if let Some((text, target)) = current.take()
-                    && let Some(url) = resolve(base_url, &target) =>
+                    && let Some(url) = resolve(base_url, &target)
+                    && seen.insert(url.to_string()) =>
             {
                 links.push(Link {
                     text,

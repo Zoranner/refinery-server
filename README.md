@@ -6,6 +6,7 @@ Refinery 是面向内网调用方的 MCP-only 网关，用于受控访问公开�
 POST /mcp
 GET  /mcp
 GET  /health
+GET  /ready
 ```
 
 服务免认证，不提供 stdio、`/v1/*` HTTP API 或 `/openapi.json`。服务不持久化网页、搜索结果、站点发现结果或下载内容。上游继续使用同一 Docker 网络中的 Reader 与 SearXNG；网络出站限制仍由部署环境负责落实。
@@ -14,12 +15,12 @@ GET  /health
 
 服务提供以下四个工具：
 
-- `web_search(query, page=1, limit=10, language?)`：通过 SearXNG 搜索公开网页。`limit` 范围为 1–20。`pagination.has_more=null` 表示上游没有提供可信的结束信号，不能把它解释为已经结束；空结果页也不能单独证明没有更多结果。
-- `web_read(url, offset=0, max_chars=12000)`：通过 Reader 读取网页、可提取 PDF 或已知纯文本资源。`max_chars` 范围为 1000–24000。成功结果保留 `target`、`extraction`、`download`、`pagination` 和 `diagnostics` 五个对象；`download.available=true` 表示服务具备资源读取能力，不包含 `resource_url`。
+- `web_search(query, page=1, limit=10, language?)`：通过 SearXNG 搜索公开网页。`page` 从 1 开始，`limit` 范围为 1–20。`pagination.has_more=null` 表示上游没有提供可信的结束信号，不能把它解释为已经结束；空结果页也不能单独证明没有更多结果。
+- `web_read(url, offset=0, max_chars=8000, links=resources)`：通过 Reader 读取网页、可提取 PDF 或已知纯文本资源。`max_chars` 范围为 1000–24000，`offset` 是已抽取正文中的字符位置，续读时填入上次响应的 `pagination.next_offset`。`links=resources` 只返回 PDF、图片和未知附件，页面链接由 Markdown 内联表达；`links=all` 返回当前分段中的全部链接，最多 50 条。成功结果保留 `target`、`extraction`、`download`、`pagination`、`diagnostics` 和 `stats` 六个对象；`stats` 报告 `markdown_chars`、`links_included` 与 `links_omitted`；`download.available=true` 表示服务具备资源读取能力，不包含 `resource_url`。
 - `web_explore(url, limit=100)`：尽力发现站点地图和页面链接，`limit` 范围为 1–500。站点发现部分成功、空结果或超时都属于正常的结构化工具结果，应结合状态、来源和 warnings 判断是否需要人工复核。
 - `web_download(url)`：只校验 URL 并生成资源 URI，不探测公网，也不声明资源 available、文件真实类型或大小已经验证。返回 `requested_url`、`resource_uri` 以及原生 MCP `resource_link`。
 
-所有工具业务错误使用 `isError=true`，并在 `structuredContent.error` 中提供 `code` 和 `message`。MCP 协议错误由 SDK 处理。
+参数非法（例如 `max_chars` 越界）返回 MCP 协议错误 `-32602`。上游失败、超时和地址阻断属于工具执行失败，返回 `isError=true`，并在 `structuredContent.error` 中提供 `code`、`message`、`stage` 和 `retryable`，便于判断失败发生在哪一层以及是否值得重试。
 
 ## MCP 资源下载
 
@@ -33,7 +34,7 @@ refinery://resource/<percent-encoded-url>
 
 ## 运行边界
 
-Refinery 仅允许受控的 URL 访问，并依赖部署环境限制 Reader 的出站网络。Reader 必须由网络策略阻断回环、私有、链路本地、保留地址和云元数据地址；应用层 URL/DNS 检查是补充。服务没有认证，也不支持 browser CORS；默认拒绝所有带 `Origin` 的浏览器请求，原生 MCP client 通常不发送 `Origin`。
+Refinery 仅允许受控的 URL 访问，并依赖部署环境限制 Reader 的出站网络。Reader 必须由网络策略阻断回环、私有、链路本地、保留地址和云元数据地址；应用层 URL/DNS 检查是补充。服务没有认证，也不支持 browser CORS。配置 `MCP_ALLOWED_ORIGINS` 后，携带 `Origin` 的请求必须匹配该列表，未配置时不校验 `Origin`；原生 MCP client 通常不发送 `Origin`。
 
 通过 `MCP_ALLOWED_HOSTS` 配置 MCP 请求允许的 Host，值为逗号分隔列表，默认值为：
 
@@ -42,6 +43,10 @@ localhost,127.0.0.1,[::1]
 ```
 
 内网部署必须将实际主机 authority 加入列表，例如 `192.168.2.16:18090`。已有环境变量继续保留，具体配置见 `deploy/.env.example`。
+
+通过 `MCP_ALLOWED_ORIGINS` 配置允许的浏览器来源，值为逗号分隔的完整 origin，例如 `https://search.rd.kim`。未配置时 `Origin` 不参与校验。
+
+`GET /ready` 并发探测 SearXNG 与 Reader 是否可达，并检查本次请求的 `Host` 是否在 `MCP_ALLOWED_HOSTS` 中。全部正常返回 200 与 `{"status":"ready"}`，否则返回 503 与逐项 `checks`。该探针用于发现 MCP 客户端工具缺失、上游不可达和主机白名单未生效这类链路故障，不替代部署环境的出站网络策略。
 
 ## 部署与发布
 

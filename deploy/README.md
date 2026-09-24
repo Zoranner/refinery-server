@@ -10,6 +10,7 @@ Refinery 是 MCP-only 服务，使用 Streamable HTTP：
 POST /mcp
 GET  /mcp
 GET  /health
+GET  /ready
 ```
 
 服务免认证，不提供 stdio、`/v1/*` HTTP API 或 `/openapi.json`。四个 MCP 工具为 `web_search`、`web_read`、`web_explore` 和 `web_download`。工具参数、结构化错误、站点发现的部分/空/超时结果、`web_read` 的 `target`/`extraction`/`download`/`pagination`/`diagnostics` 结构，以及 `web_download` 后必须使用 `resources/read` 的资源读取规则，以仓库根目录 [README.md](../README.md) 为准。
@@ -42,6 +43,7 @@ Copy-Item .env.example .env
 
 ```text
 MCP_ALLOWED_HOSTS=localhost,127.0.0.1,[::1]
+MCP_ALLOWED_ORIGINS=
 ```
 
 该变量是逗号分隔的 Host authority 列表。内网部署必须填写实际 authority，例如：
@@ -50,7 +52,15 @@ MCP_ALLOWED_HOSTS=localhost,127.0.0.1,[::1]
 MCP_ALLOWED_HOSTS=192.168.2.16:18090
 ```
 
-默认拒绝所有带 `Origin` 的浏览器请求；原生 MCP client 不带 `Origin`。服务不增加认证，也不支持 browser CORS。
+`MCP_ALLOWED_ORIGINS` 是逗号分隔的完整 origin 列表，例如 `https://search.rd.kim`。留空表示不校验 `Origin`；配置后，携带 `Origin` 的请求必须匹配该列表。原生 MCP client 不带 `Origin`。服务不增加认证，也不支持 browser CORS。
+
+启动后先确认就绪状态：
+
+```text
+curl -sS http://<实际 authority>/ready
+```
+
+返回 `{"status":"ready"}` 表示 SearXNG 与 Reader 可达且当前请求的 Host 已加入白名单；返回 503 时逐项检查 `checks`。Host 未加入白名单会导致 MCP 客户端静默缺少工具，这是 `/ready` 首先要覆盖的故障。
 
 ## 启动
 
@@ -75,4 +85,4 @@ docker image load --input refinery-<version>-linux-amd64.tar
 
 Refinery 不持久化网页、搜索结果、站点发现结果或下载内容。SearXNG 和 Reader 通过 Docker 网络供 Refinery 使用，员工和内网应用只访问 Refinery。Reader 的出站限制必须由部署环境落实，应用层检查不能替代网络策略。
 
-正式对内启动前，仍需在目标环境实际核对 MCP `/mcp` 调用、`/health`、Reader、SearXNG、重定向、私网阻断、20 MiB 上限、`resources/read` 下载和实际 MIME/大小元数据。本文保留这些验收边界，不把本地代码状态、旧镜像状态或模板内容写成完成证明。
+正式对内启动前，仍需在目标环境实际核对 MCP `/mcp` 调用、`/health`、`/ready`、Reader、SearXNG、重定向、私网阻断、20 MiB 上限、`resources/read` 下载和实际 MIME/大小元数据。本文保留这些验收边界，不把本地代码状态、旧镜像状态或模板内容写成完成证明。

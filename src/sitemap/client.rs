@@ -2,7 +2,7 @@ use std::time::Duration;
 
 use async_trait::async_trait;
 use reqwest::{Client, redirect::Policy};
-use url::Url;
+use url::{Host, Url};
 
 use crate::{
     content::{is_public_ipv4, is_public_ipv6, validate_public_url},
@@ -89,11 +89,20 @@ impl SitemapFetcher for HttpSitemapFetcher {
 }
 
 pub async fn ensure_public_dns(url: &Url) -> Result<(), ApiError> {
-    let host = url.host_str().ok_or_else(ApiError::fetch_failed)?;
     let port = url
         .port_or_known_default()
         .ok_or_else(ApiError::fetch_failed)?;
-    let addresses = tokio::net::lookup_host((host, port))
+
+    match url.host().ok_or_else(ApiError::fetch_failed)? {
+        Host::Ipv4(address) if !is_public_ipv4(address) => Err(ApiError::blocked_target()),
+        Host::Ipv6(address) if !is_public_ipv6(address) => Err(ApiError::blocked_target()),
+        Host::Ipv4(_) | Host::Ipv6(_) => Ok(()),
+        Host::Domain(domain) => ensure_public_domain(domain, port).await,
+    }
+}
+
+async fn ensure_public_domain(domain: &str, port: u16) -> Result<(), ApiError> {
+    let addresses = tokio::net::lookup_host((domain, port))
         .await
         .map_err(|_| ApiError::fetch_failed())?;
     let mut found = false;
@@ -157,6 +166,15 @@ mod tests {
                 ),
                 "{raw}: {result:?}"
             );
+        }
+    }
+
+    #[tokio::test]
+    async fn ensure_public_dns_accepts_public_ip_literals() {
+        for raw in ["http://93.184.216.34/", "http://[2606:4700:4700::1111]/"] {
+            let url = url::Url::parse(raw).unwrap();
+            let result = ensure_public_dns(&url).await;
+            assert!(result.is_ok(), "{raw}: {result:?}");
         }
     }
 }

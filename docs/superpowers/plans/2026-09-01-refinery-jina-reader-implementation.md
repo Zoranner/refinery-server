@@ -297,7 +297,7 @@ Create the three services without `${...}` references. Load Refinery variables f
     restart: always
 
   refinery:
-    image: ghcr.io/zoranner/refinery:0.2.0
+    image: ghcr.io/zoranner/refinery:0.3.0
     restart: always
     env_file:
       - ./.env

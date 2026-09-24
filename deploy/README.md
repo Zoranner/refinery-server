@@ -20,7 +20,7 @@ GET  /health
 
 - 目标环境已按实际网络完成 Reader 固定镜像的 HTML、PDF、重定向、SSRF、超大响应、错误和超时验收。
 - 出站网络策略阻断 Reader 访问回环、私有、链路本地、保留和云元数据地址。
-- 本次 MCP 源代码已在独立部署目录构建为 candidate image，例如 `refinery:mcp-local`；不要把当前 `0.2.0` 旧 HTTP 镜像误称为 MCP 版本。
+- Refinery 镜像使用模板固定的 `ghcr.io/zoranner/refinery:0.3.0`，或独立部署目录中导入/构建的同版本 tag；`0.2.0` 及更早的镜像是旧 HTTP 接口，不是 MCP 版本。
 
 仓库模板本身不执行构建或部署。当前模板端口为：
 
@@ -59,7 +59,7 @@ docker network create refinery
 docker compose up -d
 ```
 
-共享网络只需创建一次。启动前确认 Compose 的 Refinery `image` 已替换为本次本地 candidate image，例如 `refinery:mcp-local`。本文不记录已通过验证或生产可用结论。
+共享网络只需创建一次。启动前确认 Compose 的 Refinery `image` 与要部署的版本一致，并按实际主机 authority 设置 `MCP_ALLOWED_HOSTS`。本文不记录已通过验证或生产可用结论。
 
 ## 发布与离线镜像
 

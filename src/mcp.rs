@@ -8,7 +8,7 @@ use rmcp::{
     ServerHandler,
     handler::server::{router::tool::ToolRouter, wrapper::Parameters},
     model::{
-        CallToolResult, ContentBlock, Implementation, ReadResourceRequestParams,
+        CallToolResult, ContentBlock, Implementation, MetaObject, ReadResourceRequestParams,
         ReadResourceResponse, ReadResourceResult, Resource, ResourceContents, ServerCapabilities,
         ServerInfo,
     },
@@ -237,14 +237,29 @@ impl ServerHandler for RefineryMcp {
             .get_with_timeout(&url, self.state.config.resource_timeout)
             .await
             .map_err(resource_error)?;
+        let size_bytes = resource.bytes.len();
         let blob = {
             use base64::Engine;
             base64::engine::general_purpose::STANDARD.encode(resource.bytes)
         };
         Ok(ReadResourceResponse::Complete(ReadResourceResult::new(
-            vec![ResourceContents::blob(blob, request.uri).with_mime_type(resource.content_type)],
+            vec![
+                ResourceContents::blob(blob, request.uri)
+                    .with_mime_type(resource.content_type)
+                    .with_meta(resource_meta(resource.final_url.as_str(), size_bytes)),
+            ],
         )))
     }
+}
+
+fn resource_meta(final_url: &str, size_bytes: usize) -> MetaObject {
+    let mut meta = serde_json::Map::new();
+    meta.insert(
+        "final_url".to_owned(),
+        serde_json::Value::String(final_url.to_owned()),
+    );
+    meta.insert("size_bytes".to_owned(), serde_json::Value::from(size_bytes));
+    MetaObject::from(meta)
 }
 
 fn payload(value: serde_json::Value) -> CallToolResult {
@@ -272,4 +287,19 @@ fn resource_error(error: crate::error::ApiError) -> rmcp::ErrorData {
     }
 
     rmcp::ErrorData::internal_error(error.message, None)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn resource_meta_carries_final_url_and_size() {
+        let meta = resource_meta("https://example.com/final.pdf", 2048);
+        assert_eq!(
+            meta.0["final_url"],
+            serde_json::json!("https://example.com/final.pdf")
+        );
+        assert_eq!(meta.0["size_bytes"], serde_json::json!(2048));
+    }
 }

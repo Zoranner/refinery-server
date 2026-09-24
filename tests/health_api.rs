@@ -86,6 +86,29 @@ async fn ready_reports_blocked_host_when_authority_is_not_whitelisted() {
 }
 
 #[tokio::test]
+async fn ready_accepts_authority_whose_port_is_not_in_the_allowlist() {
+    let app = refinery::routes::router(refinery::state::AppState::for_test());
+    let (_, body) = get_ready(app, "localhost:18090").await;
+    assert_eq!(body["checks"]["mcp_host"], "allowed");
+}
+
+#[tokio::test]
+async fn ready_accepts_bracketed_ipv6_authority_with_port() {
+    let app = refinery::routes::router(refinery::state::AppState::for_test());
+    let (_, body) = get_ready(app, "[::1]:18090").await;
+    assert_eq!(body["checks"]["mcp_host"], "allowed");
+}
+
+#[tokio::test]
+async fn ready_reports_blocked_host_when_the_allowlist_requires_another_port() {
+    let mut config = refinery::config::Config::for_test();
+    config.mcp_allowed_hosts = vec!["localhost:18090".to_owned()];
+    let app = refinery::routes::router(refinery::state::AppState::new(config));
+    let (_, body) = get_ready(app, "localhost:443").await;
+    assert_eq!(body["checks"]["mcp_host"], "blocked");
+}
+
+#[tokio::test]
 async fn ready_reports_ready_when_upstreams_answer() {
     let base = stub_upstream().await;
     let mut config = refinery::config::Config::for_test();

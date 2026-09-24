@@ -52,6 +52,8 @@ MCP_ALLOWED_ORIGINS=
 MCP_ALLOWED_HOSTS=192.168.2.16:18090
 ```
 
+列表留空表示不校验 `Host`，等同允许任意 authority，生产部署不要留空。允许项不带端口时匹配该主机的任意端口。
+
 `MCP_ALLOWED_ORIGINS` 是逗号分隔的完整 origin 列表，例如 `https://search.rd.kim`。留空表示不校验 `Origin`；配置后，携带 `Origin` 的请求必须匹配该列表。原生 MCP client 不带 `Origin`。服务不增加认证，也不支持 browser CORS。
 
 启动后先确认就绪状态：

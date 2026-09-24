@@ -44,6 +44,8 @@ localhost,127.0.0.1,[::1]
 
 内网部署必须将实际主机 authority 加入列表，例如 `192.168.2.16:18090`。已有环境变量继续保留，具体配置见 `deploy/.env.example`。
 
+列表为空时服务不校验 `Host`，等同允许任意 authority；生产部署必须显式填写实际主机。允许项不带端口时匹配该主机的任意端口，端口与 IPv6 方括号形式按 authority 解析。
+
 通过 `MCP_ALLOWED_ORIGINS` 配置允许的浏览器来源，值为逗号分隔的完整 origin，例如 `https://search.rd.kim`。未配置时 `Origin` 不参与校验。
 
 `GET /ready` 并发探测 SearXNG 与 Reader 是否可达，并检查本次请求的 `Host` 是否在 `MCP_ALLOWED_HOSTS` 中。全部正常返回 200 与 `{"status":"ready"}`，否则返回 503 与逐项 `checks`。该探针用于发现 MCP 客户端工具缺失、上游不可达和主机白名单未生效这类链路故障，不替代部署环境的出站网络策略。

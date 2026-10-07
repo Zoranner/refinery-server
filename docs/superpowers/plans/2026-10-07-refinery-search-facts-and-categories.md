@@ -602,3 +602,34 @@ Expected: 文档描述与 `src/search/mod.rs`、`src/mcp.rs` 的实际字段一�
 本计划不修改 `deploy/app/settings.yml` 的引擎集合与权重，不解决 5 个通用引擎被反爬拦截的运维问题；服务只保证如实报告并让调用方能够换类别。
 
 本机没有 Docker，SearXNG 的真实行为只能在部署机验证；本地用测试桩覆盖解析、透传与状态判定。
+
+## 评测基线
+
+后续任何搜索相关的改动（权重、引擎集合、路由映射）都要先跑这套固定查询，再决定是否保留。判定标准是"期望来源类型出现在前三"，不是凭印象看结果像不像。
+
+实体查询（`scope=code`）：
+
+| 查询 | 期望前三出现的来源 |
+|---|---|
+| `trafilatura` | github.com 上的 adbar/trafilatura |
+| `python requests` | github.com 上的 psf/requests |
+| `postgres index` | Postgres 索引相关项目或官方文档 |
+
+排障查询（`scope=qa`）：
+
+| 查询 | 期望前三出现的来源 |
+|---|---|
+| `postgres index not used` | stackoverflow、superuser 或 askubuntu |
+| `rust tokio timeout example` | stackoverflow 或 tokio 官方文档 |
+| `docker compose healthcheck retries` | docs.docker.com 或 stackoverflow |
+
+包查询（`scope=package`）与学术查询（`scope=paper`）：
+
+| 查询 | 期望前三出现的来源 |
+|---|---|
+| `trafilatura` | pypi.org、crates.io 或 npm |
+| `retrieval augmented generation evaluation` | arxiv、semantic scholar 或 crossref |
+
+通用查询（默认 `scope=web`）用于观察退化而不是判定相关：`上海天气` 不应被 stackoverflow 或 mdn 占据；当 `diagnostics.warnings` 出现 `default_category_degraded` 时记录当时可用的通用引擎。
+
+每次测量记录每条查询的前三条来源引擎与域名。发布门槛：实体组与排障组的命中率不得低于上一版。

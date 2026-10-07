@@ -45,6 +45,8 @@ pub struct SearchInput {
     #[serde(default = "default_safesearch")]
     #[schemars(range(min = 0, max = 2))]
     pub safesearch: u8,
+    /// 检索意图：web 泛资料（默认）、code 技术资料、qa 排障问答、package 包查询、paper 学术资料。
+    pub scope: Option<crate::search::SearchScope>,
 }
 
 #[derive(Debug, Deserialize, JsonSchema)]
@@ -128,7 +130,7 @@ pub fn http_service(state: AppState) -> StreamableHttpService<RefineryMcp, Local
 impl RefineryMcp {
     #[tool(
         name = "web_search",
-        description = "Search public web pages. Pass categories (for example it or science) when diagnostics reports the default category as degraded."
+        description = "Search public web pages. Set scope=code, qa, package or paper to route the query to specialised engines; the default web scope uses the instance general category and reports when it is degraded."
     )]
     async fn web_search(
         &self,
@@ -141,6 +143,7 @@ impl RefineryMcp {
             language: input.language,
             categories: input.categories,
             safesearch: Some(input.safesearch),
+            scope: input.scope,
         };
         let result = match crate::application::search(&self.state, request).await {
             Ok(result) => result,

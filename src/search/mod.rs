@@ -2,6 +2,7 @@ pub mod searxng;
 
 use std::collections::HashSet;
 
+use rmcp::schemars::{self, JsonSchema};
 use serde::{Deserialize, Serialize};
 
 use crate::error::ApiError;
@@ -16,6 +17,36 @@ pub struct SearchRequest {
     pub language: Option<String>,
     pub categories: Option<String>,
     pub safesearch: Option<u8>,
+    pub scope: Option<SearchScope>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum SearchScope {
+    /// 默认：不限定类别，走实例默认的 general。
+    Web,
+    /// 技术资料：代码托管、包仓库与问答站。
+    Code,
+    /// 排障问答：问答站与官方文档。
+    Qa,
+    /// 包查询：包注册表。
+    Package,
+    /// 学术资料：论文与预印本。
+    Paper,
+}
+
+pub fn effective_categories(request: &SearchRequest) -> Option<&str> {
+    if let Some(categories) = request.categories.as_deref() {
+        return Some(categories);
+    }
+
+    match request.scope.unwrap_or(SearchScope::Web) {
+        SearchScope::Web => None,
+        SearchScope::Code => Some("it"),
+        SearchScope::Qa => Some("q&a"),
+        SearchScope::Package => Some("packages"),
+        SearchScope::Paper => Some("science"),
+    }
 }
 
 #[derive(Debug, Serialize)]
@@ -36,6 +67,7 @@ pub struct SearchPagination {
 #[derive(Debug, Serialize)]
 pub struct SearchDiagnostics {
     pub source_status: SearchSourceStatus,
+    pub routing: SearchRouting,
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub engines: Vec<EngineUsage>,
     #[serde(skip_serializing_if = "Vec::is_empty")]
@@ -44,6 +76,13 @@ pub struct SearchDiagnostics {
     pub upstream_results: Option<u64>,
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub warnings: Vec<&'static str>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct SearchRouting {
+    pub scope: SearchScope,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub categories: Option<String>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
@@ -111,9 +150,7 @@ pub fn assemble(
     counts.sort_by(|a, b| b.1.cmp(&a.1).then_with(|| a.0.cmp(&b.0)));
 
     let status = derive_status(results.len(), unresponsive_engines.len());
-    let uses_default_category = request
-        .categories
-        .as_deref()
+    let uses_default_category = effective_categories(request)
         .map(|value| value.split(',').any(|part| part.trim() == "general"))
         .unwrap_or(true);
     let mut warnings = Vec::new();
@@ -131,6 +168,10 @@ pub fn assemble(
         },
         diagnostics: SearchDiagnostics {
             source_status: status,
+            routing: SearchRouting {
+                scope: request.scope.unwrap_or(SearchScope::Web),
+                categories: effective_categories(request).map(str::to_owned),
+            },
             engines: counts
                 .into_iter()
                 .map(|(name, results)| EngineUsage { name, results })
@@ -195,6 +236,10 @@ mod tests {
     }
 
     fn request(categories: Option<&str>) -> SearchRequest {
+        request_with_scope(categories, SearchScope::Web)
+    }
+
+    fn request_with_scope(categories: Option<&str>, scope: SearchScope) -> SearchRequest {
         SearchRequest {
             query: "q".to_owned(),
             page: 1,
@@ -202,6 +247,7 @@ mod tests {
             language: None,
             categories: categories.map(str::to_owned),
             safesearch: None,
+            scope: Some(scope),
         }
     }
 
@@ -274,5 +320,50 @@ mod tests {
             None,
         );
         assert!(explicit.diagnostics.warnings.is_empty());
+    }
+
+    #[test]
+    fn scope_maps_to_categories_unless_explicitly_overridden() {
+        assert_eq!(effective_categories(&request(None)), None);
+        assert_eq!(
+            effective_categories(&request_with_scope(None, SearchScope::Web)),
+            None
+        );
+        assert_eq!(
+            effective_categories(&request_with_scope(None, SearchScope::Code)),
+            Some("it")
+        );
+        assert_eq!(
+            effective_categories(&request_with_scope(None, SearchScope::Qa)),
+            Some("q&a")
+        );
+        assert_eq!(
+            effective_categories(&request_with_scope(None, SearchScope::Package)),
+            Some("packages")
+        );
+        assert_eq!(
+            effective_categories(&request_with_scope(None, SearchScope::Paper)),
+            Some("science")
+        );
+        assert_eq!(
+            effective_categories(&request_with_scope(Some("science"), SearchScope::Code)),
+            Some("science")
+        );
+    }
+
+    #[test]
+    fn response_reports_the_routing_that_was_used() {
+        let response = assemble(
+            &request_with_scope(None, SearchScope::Qa),
+            vec![result("https://a.example/1", "superuser")],
+            Vec::new(),
+            None,
+        );
+
+        assert_eq!(response.diagnostics.routing.scope, SearchScope::Qa);
+        assert_eq!(
+            response.diagnostics.routing.categories.as_deref(),
+            Some("q&a")
+        );
     }
 }

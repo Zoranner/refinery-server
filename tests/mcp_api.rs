@@ -282,7 +282,10 @@ async fn web_read_projects_links_and_reports_stats() {
     assert!(document["diagnostics"]["timeout_seconds"].is_number());
 }
 
-async fn stub_searxng_capture() -> (String, std::sync::Arc<std::sync::Mutex<String>>) {
+async fn stub_searxng(
+    status: u16,
+    body: &'static str,
+) -> (String, std::sync::Arc<std::sync::Mutex<String>>) {
     use std::sync::{Arc, Mutex};
 
     let captured = Arc::new(Mutex::new(String::new()));
@@ -303,9 +306,8 @@ async fn stub_searxng_capture() -> (String, std::sync::Arc<std::sync::Mutex<Stri
                 if let Some(line) = request.lines().next() {
                     *sink.lock().unwrap() = line.to_owned();
                 }
-                let body = r#"{"results":[{"title":"a","url":"https://a.example/1","content":"x","engines":["bing"]}],"unresponsive_engines":[["google","拒绝访问"]],"number_of_results":7}"#;
                 let response = format!(
-                    "HTTP/1.1 200 OK\r\ncontent-type: application/json\r\ncontent-length: {}\r\nconnection: close\r\n\r\n{}",
+                    "HTTP/1.1 {status} X\r\ncontent-type: application/json\r\ncontent-length: {}\r\nconnection: close\r\n\r\n{}",
                     body.len(),
                     body
                 );
@@ -318,7 +320,11 @@ async fn stub_searxng_capture() -> (String, std::sync::Arc<std::sync::Mutex<Stri
 
 #[tokio::test]
 async fn web_search_forwards_categories_and_reports_engine_facts() {
-    let (base, captured) = stub_searxng_capture().await;
+    let (base, captured) = stub_searxng(
+        200,
+        r#"{"results":[{"title":"a","url":"https://a.example/1","content":"x","engines":["bing"]}],"unresponsive_engines":[["google","拒绝访问"]],"number_of_results":7}"#,
+    )
+    .await;
     let mut config = refinery::config::Config::for_test();
     config.searxng_base_url = base;
     let service = refinery::routes::router(refinery::state::AppState::new(config));
@@ -356,6 +362,66 @@ async fn web_search_forwards_categories_and_reports_engine_facts() {
 }
 
 #[tokio::test]
+async fn search_scope_routes_to_the_mapped_category() {
+    let (base, captured) = stub_searxng(
+        200,
+        r#"{"results":[{"title":"a","url":"https://a.example/1","content":"x","engines":["arxiv"]}]}"#,
+    )
+    .await;
+    let mut config = refinery::config::Config::for_test();
+    config.searxng_base_url = base;
+    let service = refinery::routes::router(refinery::state::AppState::new(config));
+    let session = initialize_session(service.clone()).await;
+    let response = post(
+        service,
+        json!({
+            "jsonrpc": "2.0", "id": 2, "method": "tools/call",
+            "params": {"name": "web_search", "arguments": {"query": "trafilatura", "scope": "paper"}}
+        }),
+        Some(&session),
+    )
+    .await;
+    let payload = body(response).await;
+    let text = payload["result"]["content"][0]["text"].as_str().unwrap();
+    let document: Value = serde_json::from_str(text).unwrap();
+
+    assert_eq!(document["diagnostics"]["routing"]["scope"], "paper");
+    assert_eq!(document["diagnostics"]["routing"]["categories"], "science");
+    let request_line = captured.lock().unwrap().clone();
+    assert!(
+        request_line.contains("categories=science"),
+        "{request_line}"
+    );
+}
+
+#[tokio::test]
+async fn search_reports_upstream_status_in_the_error() {
+    let (base, _captured) = stub_searxng(400, r#"{"error":"bad category"}"#).await;
+    let mut config = refinery::config::Config::for_test();
+    config.searxng_base_url = base;
+    let service = refinery::routes::router(refinery::state::AppState::new(config));
+    let session = initialize_session(service.clone()).await;
+    let response = post(
+        service,
+        json!({
+            "jsonrpc": "2.0", "id": 2, "method": "tools/call",
+            "params": {"name": "web_search", "arguments": {"query": "trafilatura"}}
+        }),
+        Some(&session),
+    )
+    .await;
+    let payload = body(response).await;
+    let error = &payload["result"]["structuredContent"]["error"];
+
+    assert_eq!(payload["result"]["isError"], true);
+    assert_eq!(error["code"], "upstream_unavailable");
+    assert!(
+        error["message"].as_str().unwrap().contains("400"),
+        "{error}"
+    );
+}
+
+#[tokio::test]
 async fn search_schema_declares_categories_and_safesearch() {
     let service = app();
     let session = initialize_session(service.clone()).await;
@@ -385,4 +451,11 @@ async fn search_schema_declares_categories_and_safesearch() {
         1
     );
     assert!(search["inputSchema"]["properties"]["categories"].is_object());
+    let scope = search["inputSchema"]["properties"]["scope"].to_string();
+    for expected in ["web", "code", "qa", "package", "paper"] {
+        assert!(
+            scope.contains(expected),
+            "scope schema 缺少 {expected}: {scope}"
+        );
+    }
 }

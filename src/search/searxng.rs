@@ -23,14 +23,20 @@ async fn search_inner(
     let endpoint = format!("{}/search", base_url.trim_end_matches('/'));
     let query = query_params(request);
 
-    let upstream = client
+    let response = client
         .get(endpoint)
         .query(&query)
         .send()
         .await
-        .map_err(|_| ApiError::upstream_unavailable())?
-        .error_for_status()
-        .map_err(|_| ApiError::upstream_unavailable())?
+        .map_err(|_| ApiError::upstream_unavailable())?;
+
+    let status = response.status();
+    if !status.is_success() {
+        return Err(ApiError::upstream_unavailable()
+            .with_message(format!("search upstream returned status {status}")));
+    }
+
+    let upstream = response
         .json::<SearxngResponse>()
         .await
         .map_err(|_| ApiError::upstream_unavailable())?;
@@ -49,8 +55,8 @@ pub(crate) fn query_params(request: &SearchRequest) -> Vec<(&'static str, String
         params.push(("language", language.clone()));
     }
 
-    if let Some(categories) = &request.categories {
-        params.push(("categories", categories.clone()));
+    if let Some(categories) = crate::search::effective_categories(request) {
+        params.push(("categories", categories.to_owned()));
     }
 
     if let Some(safesearch) = request.safesearch {
@@ -123,6 +129,7 @@ mod tests {
             language: Some("zh-CN".to_owned()),
             categories: Some("it,science".to_owned()),
             safesearch: Some(1),
+            scope: None,
         }
     }
 

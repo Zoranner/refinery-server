@@ -698,6 +698,7 @@ engines:
     engine: docker_hub
     shortcut: dh
     categories: [it, packages]
+    weight: 0.4
 
   - name: encyclosearch
     engine: json_engine
@@ -934,6 +935,7 @@ engines:
     engine: github
     shortcut: gh
     categories: [it, repos]
+    weight: 2.0
 
   - name: codeberg
     # https://docs.searxng.org/dev/engines/online/gitea.html
@@ -1240,6 +1242,7 @@ engines:
     shortcut: mdn
     engine: json_engine
     categories: [it]
+    weight: 1.2
     paging: true
     search_url: https://developer.mozilla.org/api/v1/search?q={query}&page={pageno}
     results_query: documents
@@ -1570,6 +1573,7 @@ engines:
     shortcut: pypi
     engine: pypi
     categories: [it, packages]
+    weight: 1.5
 
   - name: qwant
     qwant_categ: web
@@ -1697,18 +1701,21 @@ engines:
     shortcut: st
     api_site: 'stackoverflow'
     categories: [it, q&a]
+    weight: 1.2
 
   - name: askubuntu
     engine: stackexchange
     shortcut: ubuntu
     api_site: 'askubuntu'
     categories: [it, q&a]
+    weight: 1.2
 
   - name: superuser
     engine: stackexchange
     shortcut: su
     api_site: 'superuser'
     categories: [it, q&a]
+    weight: 1.2
 
   - name: discuss.python
     engine: discourse

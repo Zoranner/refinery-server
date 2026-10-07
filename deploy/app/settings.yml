@@ -2442,6 +2442,15 @@ engines:
     categories: news
     brave_category: news
 
+  # Brave Search API：官方接口，用 key 鉴权，不受出口 IP 反爬影响。
+  # 在 https://api.search.brave.com/ 申请 key 后填入 api_key，并删除下一行的 disabled: true。
+  - name: brave api
+    engine: braveapi
+    shortcut: brapi
+    categories: [general, web]
+    api_key: ''
+    disabled: true
+
   # - name: brave.goggles
   #   engine: brave
   #   network: brave

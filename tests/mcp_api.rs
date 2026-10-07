@@ -215,7 +215,7 @@ async fn tool_schemas_declare_parameter_ranges() {
     assert_eq!(explore["properties"]["limit"]["default"], 100);
 }
 
-async fn stub_reader(markdown: &'static str) -> String {
+async fn stub_reader_with(status: u16, body: &'static str) -> String {
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
     let address = listener.local_addr().unwrap();
     tokio::spawn(async move {
@@ -228,15 +228,76 @@ async fn stub_reader(markdown: &'static str) -> String {
                 let mut buffer = [0_u8; 2048];
                 let _ = stream.read(&mut buffer).await;
                 let response = format!(
-                    "HTTP/1.1 200 OK\r\ncontent-type: text/plain; charset=utf-8\r\ncontent-length: {}\r\nconnection: close\r\n\r\n{}",
-                    markdown.len(),
-                    markdown
+                    "HTTP/1.1 {status} X\r\ncontent-type: text/plain; charset=utf-8\r\ncontent-length: {}\r\nconnection: close\r\n\r\n{}",
+                    body.len(),
+                    body
                 );
                 let _ = stream.write_all(response.as_bytes()).await;
             });
         }
     });
     format!("http://{address}")
+}
+
+async fn stub_reader(markdown: &'static str) -> String {
+    stub_reader_with(200, markdown).await
+}
+
+#[tokio::test]
+async fn web_read_extracts_unknown_extension_text() {
+    let reader = stub_reader("# 标题\n\n[手册](https://example.com/report.pdf)\n").await;
+    let mut config = refinery::config::Config::for_test();
+    config.reader_base_url = reader;
+    let service = refinery::routes::router(refinery::state::AppState::new(config));
+    let session = initialize_session(service.clone()).await;
+    let response = post(
+        service,
+        json!({
+            "jsonrpc": "2.0", "id": 2, "method": "tools/call",
+            "params": {"name": "web_read", "arguments": {"url": "https://example.com/Cargo.toml"}}
+        }),
+        Some(&session),
+    )
+    .await;
+    let payload = body(response).await;
+    let text = payload["result"]["content"][0]["text"].as_str().unwrap();
+    let document: Value = serde_json::from_str(text).unwrap();
+
+    assert_eq!(document["extraction"]["status"], "extracted");
+    assert_eq!(document["target"]["resource_kind"], "text");
+    assert_eq!(document["extraction"]["links"][0]["kind"], "pdf");
+}
+
+#[tokio::test]
+async fn web_read_falls_back_to_download_only_when_unknown_extension_fails() {
+    let reader = stub_reader_with(500, "boom").await;
+    let mut config = refinery::config::Config::for_test();
+    config.reader_base_url = reader;
+    let service = refinery::routes::router(refinery::state::AppState::new(config));
+    let session = initialize_session(service.clone()).await;
+    let response = post(
+        service,
+        json!({
+            "jsonrpc": "2.0", "id": 2, "method": "tools/call",
+            "params": {"name": "web_read", "arguments": {"url": "https://example.com/archive.zip"}}
+        }),
+        Some(&session),
+    )
+    .await;
+    let payload = body(response).await;
+    let text = payload["result"]["content"][0]["text"].as_str().unwrap();
+    let document: Value = serde_json::from_str(text).unwrap();
+
+    assert_eq!(document["extraction"]["status"], "download_only");
+    assert_eq!(document["download"]["available"], true);
+    assert_eq!(document["diagnostics"]["warnings"][0], "extraction_failed");
+    assert!(
+        document["extraction"]["reason"]
+            .as_str()
+            .unwrap()
+            .contains("500"),
+        "{document}"
+    );
 }
 
 #[tokio::test]

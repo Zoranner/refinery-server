@@ -32,44 +32,34 @@ pub async fn read(
 ) -> Result<MaterialContentResponse, ApiError> {
     let url = request.validate()?;
     let requested_kind = kind_for_url(&url);
-    if matches!(requested_kind, ResourceKind::Image | ResourceKind::Unknown) {
-        return Ok(MaterialContentResponse {
-            target: TargetFacts::new(
-                url.clone(),
-                url.clone(),
-                requested_kind,
-                target_content_type(&url, &kind_for_url(&url)),
-            ),
-            extraction: ExtractionResult::download_only(
-                "none",
-                "该资源不支持文本抽取，请通过 web_download 获取原文件",
-            ),
-            download: DownloadCapability { available: true },
-            pagination: Pagination {
-                offset: 0,
-                next_offset: None,
-                truncated: false,
-            },
-            diagnostics: Diagnostics {
-                upstream_status: None,
-                duration_ms: None,
-                timeout_seconds: None,
-                warnings: Vec::new(),
-            },
-            stats: crate::material::OutputStats {
-                markdown_chars: 0,
-                links_included: 0,
-                links_omitted: 0,
-            },
-        });
+    if matches!(requested_kind, ResourceKind::Image) {
+        return Ok(download_only(
+            url,
+            "该资源不支持文本抽取，请通过 web_download 获取原文件".to_owned(),
+        ));
     }
-    let document = client::read(
+
+    let document = match client::read(
         &state.http_client,
         &state.config.reader_base_url,
         &url,
         state.config.reader_timeout,
     )
-    .await?;
+    .await
+    {
+        Ok(document) => document,
+        Err(error)
+            if matches!(requested_kind, ResourceKind::Unknown) && !error.is_protocol_error() =>
+        {
+            let mut response = download_only(url, format!("文本抽取失败：{}", error.message));
+            response
+                .diagnostics
+                .warnings
+                .push("extraction_failed".to_owned());
+            return Ok(response);
+        }
+        Err(error) => return Err(error),
+    };
     let kind = kind_for_response(&document.final_url, &document.content_type);
     let target = TargetFacts::new(url, document.final_url, kind, document.content_type.clone());
     let mut response = crate::material::normalize_reader_result_with_options(
@@ -83,6 +73,33 @@ pub async fn read(
     response.diagnostics.duration_ms = Some(document.duration_ms);
     response.diagnostics.timeout_seconds = Some(state.config.reader_timeout.as_secs());
     Ok(response)
+}
+
+fn download_only(url: url::Url, reason: String) -> MaterialContentResponse {
+    let kind = kind_for_url(&url);
+    let content_type = target_content_type(&url, &kind);
+
+    MaterialContentResponse {
+        target: TargetFacts::new(url.clone(), url, kind, content_type),
+        extraction: ExtractionResult::download_only("none", reason),
+        download: DownloadCapability { available: true },
+        pagination: Pagination {
+            offset: 0,
+            next_offset: None,
+            truncated: false,
+        },
+        diagnostics: Diagnostics {
+            upstream_status: None,
+            duration_ms: None,
+            timeout_seconds: None,
+            warnings: Vec::new(),
+        },
+        stats: crate::material::OutputStats {
+            markdown_chars: 0,
+            links_included: 0,
+            links_omitted: 0,
+        },
+    }
 }
 
 pub async fn explore(

@@ -281,3 +281,108 @@ async fn web_read_projects_links_and_reports_stats() {
     assert!(document["diagnostics"]["duration_ms"].is_number());
     assert!(document["diagnostics"]["timeout_seconds"].is_number());
 }
+
+async fn stub_searxng_capture() -> (String, std::sync::Arc<std::sync::Mutex<String>>) {
+    use std::sync::{Arc, Mutex};
+
+    let captured = Arc::new(Mutex::new(String::new()));
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let address = listener.local_addr().unwrap();
+    let sink = Arc::clone(&captured);
+    tokio::spawn(async move {
+        loop {
+            let Ok((mut stream, _)) = listener.accept().await else {
+                return;
+            };
+            let sink = Arc::clone(&sink);
+            tokio::spawn(async move {
+                use tokio::io::{AsyncReadExt, AsyncWriteExt};
+                let mut buffer = [0_u8; 4096];
+                let read = stream.read(&mut buffer).await.unwrap_or(0);
+                let request = String::from_utf8_lossy(&buffer[..read]).to_string();
+                if let Some(line) = request.lines().next() {
+                    *sink.lock().unwrap() = line.to_owned();
+                }
+                let body = r#"{"results":[{"title":"a","url":"https://a.example/1","content":"x","engines":["bing"]}],"unresponsive_engines":[["google","拒绝访问"]],"number_of_results":7}"#;
+                let response = format!(
+                    "HTTP/1.1 200 OK\r\ncontent-type: application/json\r\ncontent-length: {}\r\nconnection: close\r\n\r\n{}",
+                    body.len(),
+                    body
+                );
+                let _ = stream.write_all(response.as_bytes()).await;
+            });
+        }
+    });
+    (format!("http://{address}"), captured)
+}
+
+#[tokio::test]
+async fn web_search_forwards_categories_and_reports_engine_facts() {
+    let (base, captured) = stub_searxng_capture().await;
+    let mut config = refinery::config::Config::for_test();
+    config.searxng_base_url = base;
+    let service = refinery::routes::router(refinery::state::AppState::new(config));
+    let session = initialize_session(service.clone()).await;
+    let response = post(
+        service,
+        json!({
+            "jsonrpc": "2.0", "id": 2, "method": "tools/call",
+            "params": {"name": "web_search", "arguments": {
+                "query": "trafilatura", "categories": "it", "safesearch": 1
+            }}
+        }),
+        Some(&session),
+    )
+    .await;
+    let payload = body(response).await;
+    let text = payload["result"]["content"][0]["text"].as_str().unwrap();
+    let document: Value = serde_json::from_str(text).unwrap();
+
+    assert_eq!(document["diagnostics"]["source_status"], "partial");
+    assert_eq!(
+        document["diagnostics"]["unresponsive_engines"][0]["name"],
+        "google"
+    );
+    assert_eq!(document["diagnostics"]["engines"][0]["name"], "bing");
+    assert_eq!(document["diagnostics"]["upstream_results"], 7);
+    assert!(
+        document["diagnostics"].get("warnings").is_none(),
+        "显式指定类别时不应给出默认类别退化提示: {document}"
+    );
+
+    let request_line = captured.lock().unwrap().clone();
+    assert!(request_line.contains("categories=it"), "{request_line}");
+    assert!(request_line.contains("safesearch=1"), "{request_line}");
+}
+
+#[tokio::test]
+async fn search_schema_declares_categories_and_safesearch() {
+    let service = app();
+    let session = initialize_session(service.clone()).await;
+    let response = post(
+        service,
+        json!({"jsonrpc": "2.0", "id": 2, "method": "tools/list", "params": {}}),
+        Some(&session),
+    )
+    .await;
+    let listed = body(response).await;
+    let tools = listed["result"]["tools"].as_array().unwrap();
+    let search = tools
+        .iter()
+        .find(|tool| tool["name"] == "web_search")
+        .unwrap();
+
+    assert_eq!(
+        search["inputSchema"]["properties"]["safesearch"]["minimum"],
+        0
+    );
+    assert_eq!(
+        search["inputSchema"]["properties"]["safesearch"]["maximum"],
+        2
+    );
+    assert_eq!(
+        search["inputSchema"]["properties"]["safesearch"]["default"],
+        1
+    );
+    assert!(search["inputSchema"]["properties"]["categories"].is_object());
+}

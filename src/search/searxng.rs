@@ -21,16 +21,7 @@ async fn search_inner(
     request: &SearchRequest,
 ) -> Result<SearchResponse, ApiError> {
     let endpoint = format!("{}/search", base_url.trim_end_matches('/'));
-    let page = request.page.to_string();
-    let mut query = vec![
-        ("q", request.query.as_str()),
-        ("format", "json"),
-        ("pageno", page.as_str()),
-    ];
-
-    if let Some(language) = &request.language {
-        query.push(("language", language));
-    }
+    let query = query_params(request);
 
     let upstream = client
         .get(endpoint)
@@ -45,6 +36,28 @@ async fn search_inner(
         .map_err(|_| ApiError::upstream_unavailable())?;
 
     Ok(assemble_parsed(request, upstream))
+}
+
+pub(crate) fn query_params(request: &SearchRequest) -> Vec<(&'static str, String)> {
+    let mut params = vec![
+        ("q", request.query.clone()),
+        ("format", "json".to_owned()),
+        ("pageno", request.page.to_string()),
+    ];
+
+    if let Some(language) = &request.language {
+        params.push(("language", language.clone()));
+    }
+
+    if let Some(categories) = &request.categories {
+        params.push(("categories", categories.clone()));
+    }
+
+    if let Some(safesearch) = request.safesearch {
+        params.push(("safesearch", safesearch.to_string()));
+    }
+
+    params
 }
 
 #[derive(Deserialize)]
@@ -105,10 +118,22 @@ mod tests {
     fn request() -> SearchRequest {
         SearchRequest {
             query: "trafilatura".to_owned(),
-            page: 1,
+            page: 2,
             limit: 5,
-            language: None,
+            language: Some("zh-CN".to_owned()),
+            categories: Some("it,science".to_owned()),
+            safesearch: Some(1),
         }
+    }
+
+    #[test]
+    fn query_params_forward_categories_and_safesearch() {
+        let params = query_params(&request());
+
+        assert!(params.contains(&("categories", "it,science".to_owned())));
+        assert!(params.contains(&("safesearch", "1".to_owned())));
+        assert!(params.contains(&("language", "zh-CN".to_owned())));
+        assert!(params.contains(&("pageno", "2".to_owned())));
     }
 
     #[test]

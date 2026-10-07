@@ -39,6 +39,12 @@ pub struct SearchInput {
     pub limit: u8,
     /// SearXNG 语言代码，例如 zh-CN。
     pub language: Option<String>,
+    /// SearXNG 类别，逗号分隔，例如 it 或 general,it；默认 general。
+    pub categories: Option<String>,
+    /// 安全搜索级别：0 关闭、1 中等、2 严格。
+    #[serde(default = "default_safesearch")]
+    #[schemars(range(min = 0, max = 2))]
+    pub safesearch: u8,
 }
 
 #[derive(Debug, Deserialize, JsonSchema)]
@@ -80,6 +86,10 @@ fn default_search_limit() -> u8 {
     10
 }
 
+fn default_safesearch() -> u8 {
+    1
+}
+
 fn default_offset() -> usize {
     0
 }
@@ -116,7 +126,10 @@ pub fn http_service(state: AppState) -> StreamableHttpService<RefineryMcp, Local
 
 #[tool_router]
 impl RefineryMcp {
-    #[tool(name = "web_search", description = "Search public web pages and资料.")]
+    #[tool(
+        name = "web_search",
+        description = "Search public web pages. Pass categories (for example it or science) when diagnostics reports the default category as degraded."
+    )]
     async fn web_search(
         &self,
         Parameters(input): Parameters<SearchInput>,
@@ -126,6 +139,8 @@ impl RefineryMcp {
             page: input.page,
             limit: input.limit,
             language: input.language,
+            categories: input.categories,
+            safesearch: Some(input.safesearch),
         };
         let result = match crate::application::search(&self.state, request).await {
             Ok(result) => result,

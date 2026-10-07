@@ -14,6 +14,8 @@ pub struct SearchRequest {
     #[serde(default = "default_limit")]
     pub limit: u8,
     pub language: Option<String>,
+    pub categories: Option<String>,
+    pub safesearch: Option<u8>,
 }
 
 #[derive(Debug, Serialize)]
@@ -109,6 +111,15 @@ pub fn assemble(
     counts.sort_by(|a, b| b.1.cmp(&a.1).then_with(|| a.0.cmp(&b.0)));
 
     let status = derive_status(results.len(), unresponsive_engines.len());
+    let uses_default_category = request
+        .categories
+        .as_deref()
+        .map(|value| value.split(',').any(|part| part.trim() == "general"))
+        .unwrap_or(true);
+    let mut warnings = Vec::new();
+    if uses_default_category && !unresponsive_engines.is_empty() {
+        warnings.push("default_category_degraded");
+    }
 
     SearchResponse {
         query: request.query.clone(),
@@ -126,7 +137,7 @@ pub fn assemble(
                 .collect(),
             unresponsive_engines,
             upstream_results,
-            warnings: Vec::new(),
+            warnings,
         },
     }
 }
@@ -143,6 +154,18 @@ impl SearchRequest {
 
         if self.limit == 0 || self.limit > 20 {
             return Err(ApiError::invalid_request("limit must be between 1 and 20"));
+        }
+
+        if self.safesearch.is_some_and(|value| value > 2) {
+            return Err(ApiError::invalid_request("safesearch must be 0, 1 or 2"));
+        }
+
+        if self
+            .categories
+            .as_deref()
+            .is_some_and(|value| value.trim().is_empty())
+        {
+            return Err(ApiError::invalid_request("categories must not be blank"));
         }
 
         Ok(())
@@ -171,12 +194,14 @@ mod tests {
         }
     }
 
-    fn request() -> SearchRequest {
+    fn request(categories: Option<&str>) -> SearchRequest {
         SearchRequest {
             query: "q".to_owned(),
             page: 1,
             limit: 10,
             language: None,
+            categories: categories.map(str::to_owned),
+            safesearch: None,
         }
     }
 
@@ -198,7 +223,7 @@ mod tests {
     #[test]
     fn assemble_deduplicates_urls_and_counts_engines() {
         let response = assemble(
-            &request(),
+            &request(None),
             vec![
                 result("https://a.example/1", "bing"),
                 result("https://a.example/1", "bing"),
@@ -222,5 +247,32 @@ mod tests {
         assert_eq!(names, ["bing", "wikipedia"]);
         assert_eq!(response.diagnostics.upstream_results, Some(42));
         assert_eq!(response.diagnostics.unresponsive_engines[0].name, "brave");
+    }
+
+    #[test]
+    fn degraded_default_category_emits_warning() {
+        let default = assemble(
+            &request(None),
+            vec![result("https://a.example/1", "bing")],
+            vec![unresponsive("google")],
+            None,
+        );
+        assert_eq!(default.diagnostics.warnings, ["default_category_degraded"]);
+
+        let general = assemble(
+            &request(Some("general,it")),
+            vec![result("https://a.example/1", "bing")],
+            vec![unresponsive("google")],
+            None,
+        );
+        assert_eq!(general.diagnostics.warnings, ["default_category_degraded"]);
+
+        let explicit = assemble(
+            &request(Some("it")),
+            vec![result("https://a.example/1", "docker hub")],
+            vec![unresponsive("google")],
+            None,
+        );
+        assert!(explicit.diagnostics.warnings.is_empty());
     }
 }

@@ -622,7 +622,6 @@ engines:
     categories: general
     search_type: web
     timeout: 5
-    disabled: true
 
   - name: yep images
     engine: yep
@@ -1305,7 +1304,6 @@ engines:
     engine: mwmbl
     # api_url: https://api.mwmbl.org
     shortcut: mwm
-    disabled: true
 
   - name: npm
     engine: npm
@@ -1968,7 +1966,6 @@ engines:
     content_query: Snippet
     categories: [general, web]
     shortcut: wib
-    disabled: true
     about:
       website: https://wiby.me/
 

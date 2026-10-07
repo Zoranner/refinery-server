@@ -1,6 +1,6 @@
 services:
   refinery:
-    image: ghcr.io/zoranner/refinery:0.2.2
+    image: ghcr.io/zoranner/refinery:0.2.3
     container_name: refinery
     restart: always
     env_file:
